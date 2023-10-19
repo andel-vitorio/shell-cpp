@@ -43,6 +43,13 @@
     "iostream": "cpp",
     "limits": "cpp",
     "numbers": "cpp",
-    "typeinfo": "cpp"
+    "typeinfo": "cpp",
+    "bitset": "cpp",
+    "cstring": "cpp",
+    "ctime": "cpp",
+    "map": "cpp",
+    "regex": "cpp",
+    "iomanip": "cpp",
+    "sstream": "cpp"
   }
 }
