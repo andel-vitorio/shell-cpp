@@ -5,21 +5,35 @@
 
 #include "Command.hpp"
 
-// Função de execução para o comando "echo"
-std::string echo_func(const std::string &message)
-{
-  return "echo: " + message;
-}
-
 class Shell
 {
 
+private:
+  Command<std::string, const std::string &> echo;
+
 public:
+
+  bool setup()
+  {
+    bool status = false;
+
+    echo.setName("echo")
+      .setDescription("Prints a message on the screen.")
+      .setAction(
+        [](const std::string& message) -> std::string
+        {
+          std::cout << message << '\n';
+          return message;
+        }
+      );
+
+    return true;
+  }
+
   int init()
   {
-    Command<std::string, const std::string &> echo_command("echo", "Prints a message", echo_func);
-    std::string echo_result = echo_command.execute("Hello, World!");
-    std::cout << echo_result << std::endl;
+    this->echo.execute("Andel");
+
     return 0;
   }
 };
