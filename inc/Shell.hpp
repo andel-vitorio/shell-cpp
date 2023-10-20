@@ -36,8 +36,11 @@ class Shell
 {
 
 private:
+  bool isRunning = false;
+
   Command<std::string, const std::string &> _echo;
   Command<std::string> _pwd;
+  Command<std::string> _hostname;
   Command<int, const std::string &> _touch;
   Command<int, const std::string &> _mkdir;
   Command<int, const std::string &> _rmfile;
@@ -70,6 +73,19 @@ private:
               const std::string &currentDir = get_current_dir_name();
               std::cout << currentDir << '\n';
               return currentDir;
+            });
+  }
+
+  void hostnameSetup()
+  {
+    _hostname.setName("hostname")
+        .setDescription("Gets the name of the current device.")
+        .setAction(
+            []() -> std::string
+            {
+              char hostname[HOST_NAME_MAX + 1];
+              gethostname(hostname, HOST_NAME_MAX + 1);
+              return hostname;
             });
   }
 
@@ -405,6 +421,7 @@ public:
 
     this->echoSetup();
     this->pwdSetup();
+    this->hostnameSetup();
     this->touchSetup();
     this->mkdirSetup();
     this->rmfileSetup();
@@ -420,6 +437,19 @@ public:
 
   int init()
   {
+    std::cout << "Wellcome to Shell - Command Interpreter!!\n";
+    std::cout << "Type 'help' to get a list of available commands.\n";
+
+    std::string input;
+
+    isRunning = true;
+
+    while (isRunning)
+    {
+      std::cout << this->_hostname.execute() << '\n';
+      std::cin >> input;
+    }
+
     return 0;
   }
 };
