@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <stack>
 #include <limits>
 #include <unistd.h>
 #include <dirent.h>
@@ -23,7 +24,8 @@ enum ShellStatus
   SUCCESS,
   FAILURE,
   OPEN_FILE_FAILURE,
-  CLOSE_FILE_FAILURE
+  CLOSE_FILE_FAILURE,
+  READ_FAILURE
 };
 
 class Shell
@@ -133,8 +135,7 @@ public:
 
               std::vector<dirent *> dirs;
 
-
-              while ( (d = readdir(dir)) != nullptr )
+              while ((d = readdir(dir)) != nullptr)
               {
 
                 if (!all and d->d_name[0] == '.')
@@ -146,62 +147,97 @@ public:
               std::sort(dirs.begin(), dirs.end(), [](const dirent *a, const dirent *b)
                         { return (std::string)a->d_name < b->d_name; });
 
+              if (!hasCaracter(mode, 'x'))
+              {
+                for (dirent *dir : dirs)
+                {
+                  if (dir == nullptr)
+                    continue;
+                  std::cout << dir->d_name << (list ? '\n' : '\t');
+                }
 
-              for (dirent* dir: dirs) {
-                if ( dir == nullptr ) continue;
-                std::cout << dir->d_name << (list ?'\n' :'\t');
+                if (!list)
+                  std::cout << '\n';
               }
-
-              if ( !list ) std::cout << '\n';
 
               return dirs;
             });
 
-    // _rmdir.setName("rmdir")
-    //     .setDescription("Generate a new directory.")
-    //     .setAction(
-    //         [](const std::string &_path) -> int
-    //         {
-    //           std::string path = _path;
+    auto rmdirAction = [this](const std::string &_path) -> int
+    {
+      std::string path = _path;
 
-    //           if (not(path[0] == '/' or (path[0] == '.' and path[1] == '/')))
-    //             path = "./" + path;
+      if (not(path[0] == '/' or (path[0] == '.' and path[1] == '/')))
+        path = "./" + path;
 
-    //           auto itens = getItensOfDirectory(path, true);
+      if (_ls.execute(path, "ax").size() > 2)
+      {
+        std::cout << "This directory contains files and/or directories. When you continue, they will all be removed.\n";
+        std::cout << "Do you wish to continue [y/n]?\n";
+        std::string res;
+        std::cin >> res;
 
-    //           // O diretório não está vazio
-    //           if (itens.size() > 2)
-    //           {
+        if ( res[0] == 'n' )
+          return SUCCESS;
+      }
 
-    //             struct stat st;
+      std::vector<std::string> dirs;
+      std::stack<std::string> dirsToRemove;
+      dirs.push_back(path);
 
-    //             for (auto &item : itens)
-    //             {
+      while (!dirs.empty())
+      {
+        std::string current_dir = dirs.back();
+        dirs.pop_back();
 
-    //               if (!strcmp(item->d_name, ".") or !strcmp(item->d_name, ".."))
-    //                 continue;
+        auto items = _ls.execute(current_dir, "ax");
 
-    //               std::string p = path + "/" + item->d_name;
+        dirsToRemove.push(current_dir);
 
-    //               if (lstat(p.c_str(), &st) < 0)
-    //                 return READ_FAILURE;
+        if (items.size() <= 2)
+        {
+          continue;
+        }
 
-    //               if (S_ISDIR(st.st_mode) and removeDirectory(p) != EXIT_SUCCESS)
-    //                 return EXIT_FAILURE;
+        for (auto &item : items)
+        {
+          if (!strcmp(item->d_name, ".") or !strcmp(item->d_name, ".."))
+            continue;
 
-    //               int status = removeFile(p);
+          std::string p = current_dir + "/" + item->d_name;
 
-    //               if (status == EXIT_SUCCESS)
-    //                 continue;
-    //               else
-    //                 return status;
-    //             }
-    //           }
+          struct stat st;
 
-    //           if (rmdir(path.c_str()) != 0)
-    //             return EXIT_FAILURE;
-    //           return EXIT_SUCCESS;
-    //         });
+          if (lstat(p.c_str(), &st) < 0)
+            return READ_FAILURE;
+
+          if (S_ISDIR(st.st_mode))
+          {
+            dirs.push_back(p);
+          }
+          else
+          {
+            int status = _rmfile.execute(p);
+
+            if (status != SUCCESS)
+              return status;
+          }
+        }
+      }
+
+      while (!dirsToRemove.empty())
+      {
+        if (rmdir(dirsToRemove.top().c_str()) != 0)
+          return FAILURE;
+        dirsToRemove.pop();
+      }
+
+      return SUCCESS;
+    };
+
+    _rmdir.setName("rmdir")
+        .setDescription("Remove a directory and its content.")
+        .setAction(rmdirAction);
 
     return true;
   }
