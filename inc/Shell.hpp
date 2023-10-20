@@ -41,6 +41,7 @@ private:
   Command<std::string, const std::string &> _echo;
   Command<std::string> _pwd;
   Command<std::string> _hostname;
+  Command<std::string> _username;
   Command<int, const std::string &> _touch;
   Command<int, const std::string &> _mkdir;
   Command<int, const std::string &> _rmfile;
@@ -86,6 +87,17 @@ private:
               char hostname[HOST_NAME_MAX + 1];
               gethostname(hostname, HOST_NAME_MAX + 1);
               return hostname;
+            });
+  }
+
+  void usernameSetup()
+  {
+    _username.setName("username")
+        .setDescription("Gets the name of the current user.")
+        .setAction(
+            []() -> std::string
+            {
+              return std::string(getlogin());
             });
   }
 
@@ -422,6 +434,7 @@ public:
     this->echoSetup();
     this->pwdSetup();
     this->hostnameSetup();
+    this->usernameSetup();
     this->touchSetup();
     this->mkdirSetup();
     this->rmfileSetup();
@@ -446,7 +459,7 @@ public:
 
     while (isRunning)
     {
-      std::cout << this->_hostname.execute() << '\n';
+      std::cout << this->_hostname.execute() << '@' << this->_username.execute() << ":~$ ";
       std::cin >> input;
     }
 
