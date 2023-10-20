@@ -1,6 +1,9 @@
 #include <iostream>
+#include "Shell.hpp"
 
 int main () {
-	std::cout << "Hello world!!\n" << '\n';
+  Shell shell;
+  shell.setup();
+  shell.init();
 	return 0;
 }
