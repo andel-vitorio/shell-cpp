@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <memory>
 
 #include "Command.hpp"
 #include "Utils.hpp"
@@ -27,7 +28,8 @@ enum ShellStatus
   CLOSE_FILE_FAILURE,
   READ_FAILURE,
   FILE_NOT_FOUND,
-  SAME_SOURCE_N_TARGET
+  SAME_SOURCE_N_TARGET,
+  MEMORY_ALLOCATION_FAILURE
 };
 
 class Shell
@@ -42,6 +44,7 @@ private:
   Command<int, const std::string &> _rmdir;
   Command<std::vector<dirent *>, const std::string &, const std::string &> _ls;
   Command<int, const std::string &, const std::string &> _mv;
+  Command<std::unique_ptr<std::string>, const std::string &, int &> _cat;
 
   void echoSetup()
   {
@@ -308,6 +311,53 @@ private:
             });
   }
 
+  void catSetup()
+  {
+    _cat.setName("cat")
+        .setDescription("Displays the contents of a file in the shell.")
+        .setAction(
+            [](const std::string &filepath, int &status) -> std::unique_ptr<std::string>
+            {
+              int fd = open(filepath.c_str(), O_RDONLY);
+              ssize_t nread, total = 0;
+              char *buffer;
+
+              if (fd < 0) {
+                status = OPEN_FILE_FAILURE;
+                return nullptr;
+              }
+
+              off_t fileSize = lseek(fd, 0, SEEK_END);
+              lseek(fd, 0, SEEK_SET);
+
+              buffer = (char *)malloc(fileSize);
+
+              if (buffer == nullptr) {
+                status = MEMORY_ALLOCATION_FAILURE;
+                return nullptr;
+              }
+
+              // Lê o arquivo em um loop
+              while ((nread = read(fd, buffer + total, fileSize - total)) > 0)
+                total += nread;
+
+              if (nread < 0) {
+                status = READ_FAILURE;
+                return nullptr;
+              }
+
+              if (buffer[fileSize - 1] == '\n')
+                buffer[fileSize - 1] = '\0';
+
+              std::unique_ptr<std::string> content = std::make_unique<std::string>(buffer);
+
+              free(buffer);
+              close(fd);
+
+              return content;
+            });
+  }
+
 public:
   bool setup()
   {
@@ -321,6 +371,7 @@ public:
     this->lsSetup();
     this->rmdirSetup();
     this->mvSetup();
+    this->catSetup();
 
     return true;
   }
