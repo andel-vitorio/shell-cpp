@@ -25,7 +25,9 @@ enum ShellStatus
   FAILURE,
   OPEN_FILE_FAILURE,
   CLOSE_FILE_FAILURE,
-  READ_FAILURE
+  READ_FAILURE,
+  FILE_NOT_FOUND,
+  SAME_SOURCE_N_TARGET
 };
 
 class Shell
@@ -39,6 +41,7 @@ private:
   Command<int, const std::string &> _rmfile;
   Command<int, const std::string &> _rmdir;
   Command<std::vector<dirent *>, const std::string &, const std::string &> _ls;
+  Command<int, const std::string &, const std::string &> _mv;
 
 public:
   bool setup()
@@ -177,7 +180,7 @@ public:
         std::string res;
         std::cin >> res;
 
-        if ( res[0] == 'n' )
+        if (res[0] == 'n')
           return SUCCESS;
       }
 
@@ -238,6 +241,53 @@ public:
     _rmdir.setName("rmdir")
         .setDescription("Remove a directory and its content.")
         .setAction(rmdirAction);
+
+    _mv.setName("ls")
+        .setDescription("Generate a new directory.")
+        .setAction(
+            [](const std::string &source, const std::string &target) -> int
+            {
+              struct stat source_sb;
+
+              if (stat(source.c_str(), &source_sb) == -1)
+                return FILE_NOT_FOUND;
+
+              struct stat target_sb;
+
+              if (stat(target.c_str(), &target_sb) != -1 && target_sb.st_ino == source_sb.st_ino)
+                return SAME_SOURCE_N_TARGET;
+
+              if (stat(target.c_str(), &target_sb) != -1)
+              {
+
+                if (S_ISDIR(target_sb.st_mode))
+                {
+
+                  const char *filename = strrchr(source.c_str(), '/');
+
+                  if (!filename)
+                    filename = source.c_str();
+                  else
+                    filename++;
+
+                  char targetPath[source.size() + strlen(filename) + 2];
+
+                  sprintf(targetPath, "%s/%s", target.c_str(), filename);
+
+                  if (rename(source.c_str(), targetPath) == -1)
+                    return EXIT_FAILURE;
+                }
+                else if (rename(source.c_str(), target.c_str()) == -1)
+                  return EXIT_FAILURE;
+              }
+              else
+              {
+                if (rename(source.c_str(), target.c_str()) == -1)
+                  return EXIT_FAILURE;
+              }
+
+              return EXIT_SUCCESS;
+            });
 
     return true;
   }
