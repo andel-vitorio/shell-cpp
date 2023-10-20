@@ -45,6 +45,7 @@ private:
   Command<std::vector<dirent *>, const std::string &, const std::string &> _ls;
   Command<int, const std::string &, const std::string &> _mv;
   Command<std::unique_ptr<std::string>, const std::string &, int &> _cat;
+  Command<int, const std::string &> _cd;
 
   void echoSetup()
   {
@@ -322,7 +323,8 @@ private:
               ssize_t nread, total = 0;
               char *buffer;
 
-              if (fd < 0) {
+              if (fd < 0)
+              {
                 status = OPEN_FILE_FAILURE;
                 return nullptr;
               }
@@ -332,7 +334,8 @@ private:
 
               buffer = (char *)malloc(fileSize);
 
-              if (buffer == nullptr) {
+              if (buffer == nullptr)
+              {
                 status = MEMORY_ALLOCATION_FAILURE;
                 return nullptr;
               }
@@ -341,7 +344,8 @@ private:
               while ((nread = read(fd, buffer + total, fileSize - total)) > 0)
                 total += nread;
 
-              if (nread < 0) {
+              if (nread < 0)
+              {
                 status = READ_FAILURE;
                 return nullptr;
               }
@@ -355,6 +359,17 @@ private:
               close(fd);
 
               return content;
+            });
+  }
+
+  void cdSetup()
+  {
+    _cd.setName("cd")
+        .setDescription("Changes the current directory.")
+        .setAction(
+            [](const std::string &path) -> int
+            {
+              return chdir(path.c_str());
             });
   }
 
@@ -372,6 +387,7 @@ public:
     this->rmdirSetup();
     this->mvSetup();
     this->catSetup();
+    this->cdSetup();
 
     return true;
   }
