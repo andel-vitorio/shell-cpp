@@ -29,7 +29,8 @@ enum ShellStatus
   READ_FAILURE,
   FILE_NOT_FOUND,
   SAME_SOURCE_N_TARGET,
-  MEMORY_ALLOCATION_FAILURE
+  MEMORY_ALLOCATION_FAILURE,
+  QUIT_COMMAND
 };
 
 class Shell
@@ -38,7 +39,10 @@ class Shell
 private:
   bool isRunning = false;
 
+  std::vector<pid_t> childProcesses;
+
   Command<std::string, const std::string &> _echo;
+  Command<int> _exit;
   Command<std::string> _pwd;
   Command<std::string> _hostname;
   Command<std::string> _username;
@@ -51,6 +55,18 @@ private:
   Command<std::unique_ptr<std::string>, const std::string &, int &> _cat;
   Command<int, const std::string &> _cd;
   Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const std::string &, int &> _grep;
+
+  void exitSetup()
+  {
+    _exit.setName("exit")
+        .setDescription("Quit shell.")
+        .setAction(
+            [this]() -> int
+            {
+              isRunning = false;
+              return SUCCESS;
+            });
+  }
 
   void echoSetup()
   {
@@ -431,6 +447,7 @@ public:
   {
     int status = SUCCESS;
 
+    this->exitSetup();
     this->echoSetup();
     this->pwdSetup();
     this->hostnameSetup();
@@ -448,19 +465,66 @@ public:
     return true;
   }
 
+  void executeCommand(std::string command)
+  {
+
+    if (std::regex_match(command, std::regex("(\\s*)(exit|quit)(\\s*)")))
+    {
+      isRunning = false;
+      return;
+    }
+
+    int i = 5;
+    while (i--)
+    {
+      std::cout << "Running command...\n";
+      sleep(1);
+    }
+  }
+
   int init()
   {
-    std::cout << "Wellcome to Shell - Command Interpreter!!\n";
-    std::cout << "Type 'help' to get a list of available commands.\n";
+    bool runInBackground = false;
 
-    std::string input;
+    std::cout << "Wellcome to Shell - Command Interpreter!!\n";
+    std::cout << "Type 'help' to get a list of available commands.\n\n\n";
 
     isRunning = true;
 
     while (isRunning)
     {
       std::cout << this->_hostname.execute() << '@' << this->_username.execute() << ":~$ ";
-      std::cin >> input;
+
+      std::string textFromPrompt, command;
+      std::getline(std::cin, textFromPrompt);
+
+      runInBackground = std::regex_match(textFromPrompt, std::regex(".*\\s+&\\s*$"));
+      command = std::regex_replace(textFromPrompt, std::regex("\\s+&\\s*$"), "");
+
+      pid_t pid = fork();
+
+      if (pid == 0)
+      {
+        executeCommand(command);
+        childProcesses.push_back(getpid());
+        exit(isRunning == false ? QUIT_COMMAND : SUCCESS);
+      }
+      else if (pid > 0)
+      {
+        if (!runInBackground)
+        {
+          int status;
+          waitpid(pid, &status, 0);
+
+          if (WIFEXITED(status) && WEXITSTATUS(status) != SUCCESS ) {
+            isRunning = false;
+          }
+        }
+      }
+      else
+      {
+        std::cerr << "Erro ao criar o processo filho.\n";
+      }
     }
 
     return 0;
