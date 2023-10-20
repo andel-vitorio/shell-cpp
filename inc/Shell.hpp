@@ -43,11 +43,8 @@ private:
   Command<std::vector<dirent *>, const std::string &, const std::string &> _ls;
   Command<int, const std::string &, const std::string &> _mv;
 
-public:
-  bool setup()
+  void echoSetup()
   {
-    bool status = false;
-
     _echo.setName("echo")
         .setDescription("Prints a message on the screen.")
         .setAction(
@@ -56,7 +53,10 @@ public:
               std::cout << message << '\n';
               return message;
             });
+  }
 
+  void pwdSetup()
+  {
     _pwd.setName("pwd")
         .setDescription("Gets the current directory.")
         .setAction(
@@ -66,7 +66,10 @@ public:
               std::cout << currentDir << '\n';
               return currentDir;
             });
+  }
 
+  void touchSetup()
+  {
     _touch.setName("touch")
         .setDescription("Generates a blank file.")
         .setAction(
@@ -83,7 +86,10 @@ public:
 
               return SUCCESS;
             });
+  }
 
+  void mkdirSetup()
+  {
     _mkdir.setName("mkdir")
         .setDescription("Generate a new directory.")
         .setAction(
@@ -105,7 +111,10 @@ public:
                 return FAILURE;
               return SUCCESS;
             });
+  }
 
+  void rmfileSetup()
+  {
     _rmfile.setName("rmfile")
         .setDescription("Generate a new directory.")
         .setAction(
@@ -121,7 +130,10 @@ public:
               else
                 return FAILURE;
             });
+  }
 
+  void lsSetup()
+  {
     _ls.setName("ls")
         .setDescription("Generate a new directory.")
         .setAction(
@@ -165,7 +177,10 @@ public:
 
               return dirs;
             });
+  }
 
+  void rmdirSetup()
+  {
     auto rmdirAction = [this](const std::string &_path) -> int
     {
       std::string path = _path;
@@ -241,9 +256,12 @@ public:
     _rmdir.setName("rmdir")
         .setDescription("Remove a directory and its content.")
         .setAction(rmdirAction);
+  }
 
-    _mv.setName("ls")
-        .setDescription("Generate a new directory.")
+  void mvSetup()
+  {
+    _mv.setName("mv")
+        .setDescription("Move or rename a file or directory.")
         .setAction(
             [](const std::string &source, const std::string &target) -> int
             {
@@ -275,19 +293,34 @@ public:
                   sprintf(targetPath, "%s/%s", target.c_str(), filename);
 
                   if (rename(source.c_str(), targetPath) == -1)
-                    return EXIT_FAILURE;
+                    return FAILURE;
                 }
                 else if (rename(source.c_str(), target.c_str()) == -1)
-                  return EXIT_FAILURE;
+                  return FAILURE;
               }
               else
               {
                 if (rename(source.c_str(), target.c_str()) == -1)
-                  return EXIT_FAILURE;
+                  return FAILURE;
               }
 
-              return EXIT_SUCCESS;
+              return SUCCESS;
             });
+  }
+
+public:
+  bool setup()
+  {
+    bool status = false;
+
+    this->echoSetup();
+    this->pwdSetup();
+    this->touchSetup();
+    this->mkdirSetup();
+    this->rmfileSetup();
+    this->lsSetup();
+    this->rmdirSetup();
+    this->mvSetup();
 
     return true;
   }
