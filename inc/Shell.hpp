@@ -46,6 +46,7 @@ private:
   Command<int, const std::string &, const std::string &> _mv;
   Command<std::unique_ptr<std::string>, const std::string &, int &> _cat;
   Command<int, const std::string &> _cd;
+  Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const std::string &, int &> _grep;
 
   void echoSetup()
   {
@@ -373,10 +374,34 @@ private:
             });
   }
 
+  void grepSetup()
+  {
+    auto grepAction = [this](const std::string &file, const std::string &pattern, int &status) -> std::unique_ptr<std::vector<std::string>>
+    {
+      std::unique_ptr<std::string> content = _cat.execute(file, status);
+      auto lines = split(*content, '\n');
+
+      std::unique_ptr<std::vector<std::string>> ans = std::make_unique<std::vector<std::string>>();
+
+      if (lines.size() == 1)
+        lines = split(*content, ' ');
+
+      for (auto &str : lines)
+        if (str.find(pattern) != std::string::npos)
+          ans->push_back(str);
+
+      return ans;
+    };
+
+    _grep.setName("grep")
+        .setDescription("Searches for the location of a word in a file.")
+        .setAction(grepAction);
+  }
+
 public:
   bool setup()
   {
-    bool status = false;
+    int status = SUCCESS;
 
     this->echoSetup();
     this->pwdSetup();
@@ -388,6 +413,7 @@ public:
     this->mvSetup();
     this->catSetup();
     this->cdSetup();
+    this->grepSetup();
 
     return true;
   }
