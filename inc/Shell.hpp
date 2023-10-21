@@ -757,6 +757,49 @@ public:
       return;
     }
 
+    if (std::regex_match(command, std::regex("(\\s*)(mv)(\\s+)([^\\s]+)(\\s+)([^\\s]+)(\\s*)")))
+    {
+
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(mv)(\\s+)"), "");
+
+      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+
+      if (args.size() == 2)
+      {
+        switch (this->$mv.execute(trim(args[0]), trim(args[1])))
+        {
+        case SUCCESS:
+          std::cout << "Moved or renamed successfully.\n";
+          break;
+
+        case FILE_NOT_FOUND:
+          std::cerr << "File not found.\n";
+          break;
+
+        case SAME_SOURCE_N_TARGET:
+          std::cerr << "The target and the source are the same.\n";
+          break;
+
+        case FAILURE:
+          std::cerr << "Failed to move or rename.\n";
+          break;
+
+        default:
+          std::cerr << "Failed to execute the command.\n";
+          break;
+        }
+      }
+      else
+        std::cerr << "Invalid arguments!\n";
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
     std::cerr << "Command not found: " << command << "\n\n";
   }
 
