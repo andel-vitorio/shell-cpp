@@ -439,8 +439,12 @@ private:
 
               std::unique_ptr<std::string> content = std::make_unique<std::string>(buffer);
 
+              std::cout << content->c_str() << '\n';
+
               free(buffer);
               close(fd);
+
+              status = SUCCESS;
 
               return content;
             });
@@ -757,7 +761,7 @@ public:
       return;
     }
 
-    if (std::regex_match(command, std::regex("(\\s*)(mv)(\\s+)([^\\s]+)(\\s+)([^\\s]+)(\\s*)")))
+    if (std::regex_match(command, std::regex("(\\s*)(mv)(\\s+)(.+)(\\s+)(.+)")))
     {
 
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(mv)(\\s+)"), "");
@@ -800,6 +804,82 @@ public:
       return;
     }
 
+    if (std::regex_match(command, std::regex("(\\s*)(cat)(\\s+)(.+)")))
+    {
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(cat)(\\s+)"), "");
+
+      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+
+      if (args.size() == 1)
+      {
+        if (isRunningInBackgroung)
+          std::cout << '\n';
+
+        int status;
+
+        this->$cat.execute(trim(args[0]), status);
+
+        switch (status)
+        {
+        case SUCCESS:
+          break;
+
+        case OPEN_FILE_FAILURE:
+          std::cout << "Failed to open file.\n";
+          break;
+
+        case READ_FAILURE:
+          std::cout << "Failed to read file.\n";
+          break;
+
+        case MEMORY_ALLOCATION_FAILURE:
+          std::cout << "Memory allocation failure.\n";
+          break;
+
+        default:
+          std::cout << "Failed to execute the command.\n";
+          break;
+        }
+      }
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(cd)(\\s+)(.+)")))
+    {
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(cd)(\\s+)"), "");
+
+      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+
+      if (args.size() == 1)
+      {
+        if (isRunningInBackgroung)
+          std::cout << '\n';
+
+        switch (this->$cd.execute(trim(args[0])))
+        {
+        case SUCCESS:
+          break;
+
+        default:
+          std::cout << "Failed to execute the command.\n";
+          break;
+        }
+      }
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
     std::cerr << "Command not found: " << command << "\n\n";
   }
 
@@ -823,39 +903,39 @@ public:
       runInBackground = std::regex_match(textFromPrompt, std::regex(".*\\s+&\\s*$"));
       command = std::regex_replace(textFromPrompt, std::regex("\\s+&\\s*$"), "");
 
-      pid_t pid = fork();
+      pid_t pid;
 
-      if (pid == 0)
+      if (runInBackground)
       {
-        runInBackground &&std::cout << "\nProcess running in background! (PID: " << getpid() << ")\n";
+        pid = fork();
 
-        executeCommand(command, runInBackground);
-
-        if (runInBackground)
+        if (pid == 0)
         {
+          std::cout << "\nProcess running in background! (PID: " << getpid() << ")\n";
+
+          executeCommand(command, runInBackground);
+
           std::cout << "\nProcess completed! (PID: " << getpid() << ")\n\n";
           this->printPrompt();
-        }
 
-        exit(isRunning == false ? QUIT_COMMAND : SUCCESS);
-      }
-      else if (pid > 0)
-      {
-        if (!runInBackground)
-        {
-          int status;
-          waitpid(pid, &status, 0);
-
-          if (WIFEXITED(status) && WEXITSTATUS(status) != SUCCESS)
-          {
-            isRunning = false;
-          }
+          exit(isRunning == false ? QUIT_COMMAND : SUCCESS);
         }
+        else if (pid < 0)
+          std::cerr << "Erro ao criar o processo filho.\n";
         else
           childProcesses.push_back(pid);
       }
       else
-        std::cerr << "Erro ao criar o processo filho.\n";
+      {
+        pid = getpid();
+        executeCommand(command, runInBackground);
+
+        int status;
+        waitpid(pid, &status, 0);
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) != SUCCESS)
+          isRunning = false;
+      }
     }
 
     for (pid_t pid : childProcesses)
