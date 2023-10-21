@@ -677,6 +677,70 @@ public:
       return;
     }
 
+    if (std::regex_match(command, std::regex("(\\s*)(rmfile)(\\s+)(.+)")))
+    {
+
+      std::string args = std::regex_replace(command, std::regex("(\\s*)(rmfile)(\\s+)"), "");
+      std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
+      std::regex noQuotesPattern("((\\s*)([^\\s]+))");
+      std::vector<std::string> filenames;
+
+      if (std::regex_match(args, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
+      {
+        std::sregex_iterator itQuotes(args.begin(), args.end(), quotesPattern);
+        std::sregex_iterator end;
+
+        while (itQuotes != end)
+        {
+          std::smatch match = *itQuotes;
+          std::string value = match.str(3);
+          filenames.push_back(value);
+          ++itQuotes;
+        }
+
+        args = std::regex_replace(args, quotesPattern, "");
+        std::sregex_iterator itNoQuotes(args.begin(), args.end(), noQuotesPattern);
+
+        while (itNoQuotes != end)
+        {
+          std::smatch match = *itNoQuotes;
+          std::string value = match.str(3);
+          filenames.push_back(value);
+          ++itNoQuotes;
+        }
+      }
+      else
+        std::cerr << "There are invalid argument(s): " << command << "\n";
+
+      for (const std::string &filename : filenames)
+      {
+        if (isRunningInBackgroung)
+          std::cout << '\n';
+
+        switch (this->$rmfile.execute(trim(filename)))
+        {
+        case SUCCESS:
+          std::cout << "File removed successfully.\n";
+          break;
+
+        case FAILURE:
+          std::cout << "Failed to remove file.\n";
+          break;
+
+        default:
+          std::cout << "Failed to execute the command.\n";
+          break;
+        }
+      }
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
     std::cerr << "Command not found: " << command << "\n\n";
   }
 
