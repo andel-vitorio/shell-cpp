@@ -59,6 +59,42 @@ private:
 
   inline void printPrompt() { std::cout << this->$hostname.execute() << '@' << this->$username.execute() << ":~$ "; }
 
+  std::vector<std::string> getArgumentsListByString(std::string &text)
+  {
+    std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
+    std::regex noQuotesPattern("((\\s*)([^\\s]+))");
+    std::vector<std::string> args;
+
+    if (std::regex_match(text, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
+    {
+      std::sregex_iterator itQuotes(text.begin(), text.end(), quotesPattern);
+      std::sregex_iterator end;
+
+      while (itQuotes != end)
+      {
+        std::smatch match = *itQuotes;
+        std::string value = match.str(3);
+        args.push_back(value);
+        ++itQuotes;
+      }
+
+      text = std::regex_replace(text, quotesPattern, "");
+      std::sregex_iterator itNoQuotes(text.begin(), text.end(), noQuotesPattern);
+
+      while (itNoQuotes != end)
+      {
+        std::smatch match = *itNoQuotes;
+        std::string value = match.str(3);
+        args.push_back(value);
+        ++itNoQuotes;
+      }
+    }
+    else
+      std::cerr << "There are invalid argument(s)\n";
+
+    return args;
+  }
+
   void exitSetup()
   {
     $exit.setName("exit")
@@ -548,39 +584,9 @@ public:
     if (std::regex_match(command, std::regex("(\\s*)(touch)(\\s+)(.+)")))
     {
 
-      std::string args = std::regex_replace(command, std::regex("(\\s*)(touch)(\\s+)"), "");
-      std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
-      std::regex noQuotesPattern("((\\s*)([^\\s]+))");
-      std::vector<std::string> filenames;
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(touch)(\\s+)"), "");
 
-      if (std::regex_match(args, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
-      {
-        std::sregex_iterator itQuotes(args.begin(), args.end(), quotesPattern);
-        std::sregex_iterator end;
-
-        while (itQuotes != end)
-        {
-          std::smatch match = *itQuotes;
-          std::string value = match.str(3);
-          filenames.push_back(value);
-          ++itQuotes;
-        }
-
-        args = std::regex_replace(args, quotesPattern, "");
-        std::sregex_iterator itNoQuotes(args.begin(), args.end(), noQuotesPattern);
-
-        while (itNoQuotes != end)
-        {
-          std::smatch match = *itNoQuotes;
-          std::string value = match.str(3);
-          filenames.push_back(value);
-          ++itNoQuotes;
-        }
-      }
-      else
-        std::cerr << "There are invalid argument(s): " << command << "\n";
-
-      for (const std::string &filename : filenames)
+      for (const std::string &filename : this->getArgumentsListByString(commandArgumentsString))
       {
         if (isRunningInBackgroung)
           std::cout << '\n';
@@ -616,39 +622,9 @@ public:
     if (std::regex_match(command, std::regex("(\\s*)(mkdir)(\\s+)(.+)")))
     {
 
-      std::string args = std::regex_replace(command, std::regex("(\\s*)(mkdir)(\\s+)"), "");
-      std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
-      std::regex noQuotesPattern("((\\s*)([^\\s]+))");
-      std::vector<std::string> folderNames;
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(mkdir)(\\s+)"), "");
 
-      if (std::regex_match(args, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
-      {
-        std::sregex_iterator itQuotes(args.begin(), args.end(), quotesPattern);
-        std::sregex_iterator end;
-
-        while (itQuotes != end)
-        {
-          std::smatch match = *itQuotes;
-          std::string value = match.str(3);
-          folderNames.push_back(value);
-          ++itQuotes;
-        }
-
-        args = std::regex_replace(args, quotesPattern, "");
-        std::sregex_iterator itNoQuotes(args.begin(), args.end(), noQuotesPattern);
-
-        while (itNoQuotes != end)
-        {
-          std::smatch match = *itNoQuotes;
-          std::string value = match.str(3);
-          folderNames.push_back(value);
-          ++itNoQuotes;
-        }
-      }
-      else
-        std::cerr << "There are invalid argument(s): " << command << "\n";
-
-      for (const std::string &folderName : folderNames)
+      for (const std::string &folderName : this->getArgumentsListByString(commandArgumentsString))
       {
         if (isRunningInBackgroung)
           std::cout << '\n';
@@ -680,39 +656,9 @@ public:
     if (std::regex_match(command, std::regex("(\\s*)(rmfile)(\\s+)(.+)")))
     {
 
-      std::string args = std::regex_replace(command, std::regex("(\\s*)(rmfile)(\\s+)"), "");
-      std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
-      std::regex noQuotesPattern("((\\s*)([^\\s]+))");
-      std::vector<std::string> filenames;
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(rmfile)(\\s+)"), "");
 
-      if (std::regex_match(args, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
-      {
-        std::sregex_iterator itQuotes(args.begin(), args.end(), quotesPattern);
-        std::sregex_iterator end;
-
-        while (itQuotes != end)
-        {
-          std::smatch match = *itQuotes;
-          std::string value = match.str(3);
-          filenames.push_back(value);
-          ++itQuotes;
-        }
-
-        args = std::regex_replace(args, quotesPattern, "");
-        std::sregex_iterator itNoQuotes(args.begin(), args.end(), noQuotesPattern);
-
-        while (itNoQuotes != end)
-        {
-          std::smatch match = *itNoQuotes;
-          std::string value = match.str(3);
-          filenames.push_back(value);
-          ++itNoQuotes;
-        }
-      }
-      else
-        std::cerr << "There are invalid argument(s): " << command << "\n";
-
-      for (const std::string &filename : filenames)
+      for (const std::string &filename : this->getArgumentsListByString(commandArgumentsString))
       {
         if (isRunningInBackgroung)
           std::cout << '\n';
@@ -732,6 +678,39 @@ public:
           break;
         }
       }
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(ls)(\\s+(.+)|$)")))
+    {
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(ls)(\\s*)"), "");
+      std::string path = "./", mode = "";
+
+      if (commandArgumentsString != "") {
+        std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+        if (!args.empty())
+        {
+
+          for (const std::string &arg : args)
+          {
+            if (std::regex_match(arg, std::regex("(\\s*)(-)([^\\s]+)(\\s*)"))) {
+              if (std::regex_match(arg, std::regex("(\\s*)(-a|-l|-la|-al)(\\s*)")))
+                mode = arg;
+              else std::cout << "ls: Argumento inválido: " << arg << "\n";
+            }
+            else
+              path = arg;
+          }
+        }
+      }
+
+      this->$ls.execute(path, mode);
 
       puts("");
 
