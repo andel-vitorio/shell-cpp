@@ -41,27 +41,27 @@ private:
 
   std::vector<pid_t> childProcesses;
 
-  Command<std::string, const std::string &> _echo;
-  Command<int> _exit;
-  Command<std::string> _pwd;
-  Command<std::string> _hostname;
-  Command<std::string> _username;
-  Command<int, const std::string &> _touch;
-  Command<int, const std::string &> _mkdir;
-  Command<int, const std::string &> _rmfile;
-  Command<int, const std::string &> _rmdir;
-  Command<std::vector<dirent *>, const std::string &, const std::string &> _ls;
-  Command<int, const std::string &, const std::string &> _mv;
-  Command<std::unique_ptr<std::string>, const std::string &, int &> _cat;
-  Command<int, const std::string &> _cd;
-  Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const std::string &, int &> _grep;
-  Command<int, const pid_t &> _kill;
+  Command<std::string, const std::string &> $echo;
+  Command<int> $exit;
+  Command<std::string> $pwd;
+  Command<std::string> $hostname;
+  Command<std::string> $username;
+  Command<int, const std::string &> $touch;
+  Command<int, const std::string &> $mkdir;
+  Command<int, const std::string &> $rmfile;
+  Command<int, const std::string &> $rmdir;
+  Command<std::vector<dirent *>, const std::string &, const std::string &> $ls;
+  Command<int, const std::string &, const std::string &> $mv;
+  Command<std::unique_ptr<std::string>, const std::string &, int &> $cat;
+  Command<int, const std::string &> $cd;
+  Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const std::string &, int &> $grep;
+  Command<int, const pid_t &> $kill;
 
-  inline void printPrompt() { std::cout << this->_hostname.execute() << '@' << this->_username.execute() << ":~$ "; }
-  
+  inline void printPrompt() { std::cout << this->$hostname.execute() << '@' << this->$username.execute() << ":~$ "; }
+
   void exitSetup()
   {
-    _exit.setName("exit")
+    $exit.setName("exit")
         .setDescription("Quit shell.")
         .setAction(
             [this]() -> int
@@ -73,7 +73,7 @@ private:
 
   void echoSetup()
   {
-    _echo.setName("echo")
+    $echo.setName("echo")
         .setDescription("Prints a message on the screen.")
         .setAction(
             [](const std::string &message) -> std::string
@@ -85,7 +85,7 @@ private:
 
   void pwdSetup()
   {
-    _pwd.setName("pwd")
+    $pwd.setName("pwd")
         .setDescription("Gets the current directory.")
         .setAction(
             []() -> std::string
@@ -98,7 +98,7 @@ private:
 
   void hostnameSetup()
   {
-    _hostname.setName("hostname")
+    $hostname.setName("hostname")
         .setDescription("Gets the name of the current device.")
         .setAction(
             []() -> std::string
@@ -111,7 +111,7 @@ private:
 
   void usernameSetup()
   {
-    _username.setName("username")
+    $username.setName("username")
         .setDescription("Gets the name of the current user.")
         .setAction(
             []() -> std::string
@@ -122,7 +122,7 @@ private:
 
   void touchSetup()
   {
-    _touch.setName("touch")
+    $touch.setName("touch")
         .setDescription("Generates a blank file.")
         .setAction(
             [](const std::string &filename) -> int
@@ -142,7 +142,7 @@ private:
 
   void mkdirSetup()
   {
-    _mkdir.setName("mkdir")
+    $mkdir.setName("mkdir")
         .setDescription("Generate a new directory.")
         .setAction(
             [](const std::string &path) -> int
@@ -167,7 +167,7 @@ private:
 
   void rmfileSetup()
   {
-    _rmfile.setName("rmfile")
+    $rmfile.setName("rmfile")
         .setDescription("Generate a new directory.")
         .setAction(
             [](const std::string &path) -> int
@@ -186,7 +186,7 @@ private:
 
   void lsSetup()
   {
-    _ls.setName("ls")
+    $ls.setName("ls")
         .setDescription("Generate a new directory.")
         .setAction(
             [](const std::string &path, const std::string &mode) -> std::vector<dirent *>
@@ -240,7 +240,7 @@ private:
       if (not(path[0] == '/' or (path[0] == '.' and path[1] == '/')))
         path = "./" + path;
 
-      if (_ls.execute(path, "ax").size() > 2)
+      if ($ls.execute(path, "ax").size() > 2)
       {
         std::cout << "This directory contains files and/or directories. When you continue, they will all be removed.\n";
         std::cout << "Do you wish to continue [y/n]?\n";
@@ -260,7 +260,7 @@ private:
         std::string current_dir = dirs.back();
         dirs.pop_back();
 
-        auto items = _ls.execute(current_dir, "ax");
+        auto items = $ls.execute(current_dir, "ax");
 
         dirsToRemove.push(current_dir);
 
@@ -287,7 +287,7 @@ private:
           }
           else
           {
-            int status = _rmfile.execute(p);
+            int status = $rmfile.execute(p);
 
             if (status != SUCCESS)
               return status;
@@ -305,14 +305,14 @@ private:
       return SUCCESS;
     };
 
-    _rmdir.setName("rmdir")
+    $rmdir.setName("rmdir")
         .setDescription("Remove a directory and its content.")
         .setAction(rmdirAction);
   }
 
   void mvSetup()
   {
-    _mv.setName("mv")
+    $mv.setName("mv")
         .setDescription("Move or rename a file or directory.")
         .setAction(
             [](const std::string &source, const std::string &target) -> int
@@ -362,7 +362,7 @@ private:
 
   void catSetup()
   {
-    _cat.setName("cat")
+    $cat.setName("cat")
         .setDescription("Displays the contents of a file in the shell.")
         .setAction(
             [](const std::string &filepath, int &status) -> std::unique_ptr<std::string>
@@ -412,7 +412,7 @@ private:
 
   void cdSetup()
   {
-    _cd.setName("cd")
+    $cd.setName("cd")
         .setDescription("Changes the current directory.")
         .setAction(
             [](const std::string &path) -> int
@@ -425,7 +425,7 @@ private:
   {
     auto grepAction = [this](const std::string &file, const std::string &pattern, int &status) -> std::unique_ptr<std::vector<std::string>>
     {
-      std::unique_ptr<std::string> content = _cat.execute(file, status);
+      std::unique_ptr<std::string> content = $cat.execute(file, status);
       auto lines = split(*content, '\n');
 
       std::unique_ptr<std::vector<std::string>> ans = std::make_unique<std::vector<std::string>>();
@@ -440,14 +440,14 @@ private:
       return ans;
     };
 
-    _grep.setName("grep")
+    $grep.setName("grep")
         .setDescription("Searches for the location of a word in a file.")
         .setAction(grepAction);
   }
 
   void killSetup()
   {
-    _kill.setName("kill")
+    $kill.setName("kill")
         .setDescription("Terminate a process by PID.")
         .setAction(
             [this](const pid_t &pid) -> int
@@ -480,7 +480,7 @@ public:
     return true;
   }
 
-  void executeCommand(std::string &command)
+  void executeCommand(std::string &command, bool isRunningInBackgroung)
   {
 
     if (std::regex_match(command, std::regex("(\\s*)(exit|quit)(\\s*)")))
@@ -489,13 +489,132 @@ public:
       return;
     }
 
-    int i = 10;
-    while (i >= 0)
+    if (std::regex_match(command, std::regex("(\\s*)(echo)(\\s+)(.+)")))
     {
-      std::cout << i << '\n';
-      sleep(1);
-      i--;
+      std::string msg = std::regex_replace(command, std::regex("(\\s*)(echo)(\\s+)"), "");
+
+      if (isRunningInBackgroung)
+        std::cout << '\n';
+
+      this->$echo.execute(msg);
+      std::cout << '\n';
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
     }
+
+    if (std::regex_match(command, std::regex("(\\s*)(pwd)(\\s*)")))
+    {
+
+      if (isRunningInBackgroung)
+        std::cout << '\n';
+
+      this->$pwd.execute();
+      std::cout << '\n';
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(hostname)(\\s*)")))
+    {
+
+      if (isRunningInBackgroung)
+        std::cout << '\n';
+
+      std::cout << this->$hostname.execute() << "\n\n";
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(username)(\\s*)")))
+    {
+
+      if (isRunningInBackgroung)
+        std::cout << '\n';
+
+      std::cout << this->$username.execute() << "\n\n";
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(touch)(\\s+)(.+)")))
+    {
+
+      std::string args = std::regex_replace(command, std::regex("(\\s*)(touch)(\\s+)"), "");
+      std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
+      std::regex noQuotesPattern("((\\s*)([^\\s]+))");
+      std::vector<std::string> filenames;
+
+      if (std::regex_match(args, std::regex("((\\s*)\"([^\"]+)\")+")))
+      {
+        std::sregex_iterator it(args.begin(), args.end(), quotesPattern);
+        std::sregex_iterator end;
+
+        while (it != end)
+        {
+          std::smatch match = *it;
+          std::string value = match.str(3);
+          filenames.push_back(value);
+          ++it;
+        }
+      } else if (std::regex_match(args, std::regex("((\\s*)([^\"]+))+")))
+      {
+        std::sregex_iterator it(args.begin(), args.end(), noQuotesPattern);
+        std::sregex_iterator end;
+
+        while (it != end)
+        {
+          std::smatch match = *it;
+          std::string value = match.str(3);
+          filenames.push_back(value);
+          ++it;
+        }
+      } {
+        std::cerr << "There are invalid argument(s). " << command << "\n";
+      }
+
+      for (const std::string &filename : filenames)
+      {
+        if (isRunningInBackgroung)
+          std::cout << '\n';
+
+        switch (this->$touch.execute(trim(filename)))
+        {
+        case SUCCESS:
+          std::cout << "File created successfully.\n";
+          break;
+
+        case OPEN_FILE_FAILURE:
+          std::cout << "Failed to create file.\n";
+          break;
+
+        case CLOSE_FILE_FAILURE:
+          std::cout << "Failed to close file.\n";
+          break;
+
+        default:
+          std::cout << "Failed to execute the command.\n";
+          break;
+        }
+      }
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
+    std::cerr << "Command not found: " << command << "\n\n";
   }
 
   int init()
@@ -509,6 +628,7 @@ public:
 
     while (isRunning)
     {
+
       this->printPrompt();
 
       std::string textFromPrompt, command;
@@ -521,7 +641,16 @@ public:
 
       if (pid == 0)
       {
-        executeCommand(command);
+        runInBackground &&std::cout << "\nProcess running in background! (PID: " << getpid() << ")\n";
+
+        executeCommand(command, runInBackground);
+
+        if (runInBackground)
+        {
+          std::cout << "\nProcess completed! (PID: " << getpid() << ")\n\n";
+          this->printPrompt();
+        }
+
         exit(isRunning == false ? QUIT_COMMAND : SUCCESS);
       }
       else if (pid > 0)
@@ -536,14 +665,15 @@ public:
             isRunning = false;
           }
         }
-        else childProcesses.push_back(pid);
+        else
+          childProcesses.push_back(pid);
       }
       else
         std::cerr << "Erro ao criar o processo filho.\n";
     }
 
     for (pid_t pid : childProcesses)
-      this->_kill.execute(pid);
+      this->$kill.execute(pid);
 
     return 0;
   }
