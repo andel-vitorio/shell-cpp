@@ -692,17 +692,20 @@ public:
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(ls)(\\s*)"), "");
       std::string path = "./", mode = "";
 
-      if (commandArgumentsString != "") {
+      if (commandArgumentsString != "")
+      {
         std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
         if (!args.empty())
         {
 
           for (const std::string &arg : args)
           {
-            if (std::regex_match(arg, std::regex("(\\s*)(-)([^\\s]+)(\\s*)"))) {
+            if (std::regex_match(arg, std::regex("(\\s*)(-)([^\\s]+)(\\s*)")))
+            {
               if (std::regex_match(arg, std::regex("(\\s*)(-a|-l|-la|-al)(\\s*)")))
                 mode = arg;
-              else std::cout << "ls: Argumento inválido: " << arg << "\n";
+              else
+                std::cout << "ls: Argumento inválido: " << arg << "\n";
             }
             else
               path = arg;
@@ -711,6 +714,40 @@ public:
       }
 
       this->$ls.execute(path, mode);
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(rmdir)(\\s+)(.+)")))
+    {
+
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(rmdir)(\\s+)"), "");
+
+      for (const std::string &filename : this->getArgumentsListByString(commandArgumentsString))
+      {
+        if (isRunningInBackgroung)
+          std::cout << '\n';
+
+        switch (this->$rmdir.execute(trim(filename)))
+        {
+        case SUCCESS:
+          std::cout << "Folder removed successfully.\n";
+          break;
+
+        case FAILURE:
+          std::cout << "Failed to remove folder.\n";
+          break;
+
+        default:
+          std::cout << "Failed to execute the command.\n";
+          break;
+        }
+      }
 
       puts("");
 
