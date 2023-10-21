@@ -55,7 +55,10 @@ private:
   Command<std::unique_ptr<std::string>, const std::string &, int &> _cat;
   Command<int, const std::string &> _cd;
   Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const std::string &, int &> _grep;
+  Command<int, const pid_t &> _kill;
 
+  inline void printPrompt() { std::cout << this->_hostname.execute() << '@' << this->_username.execute() << ":~$ "; }
+  
   void exitSetup()
   {
     _exit.setName("exit")
@@ -442,6 +445,17 @@ private:
         .setAction(grepAction);
   }
 
+  void killSetup()
+  {
+    _kill.setName("kill")
+        .setDescription("Terminate a process by PID.")
+        .setAction(
+            [this](const pid_t &pid) -> int
+            {
+              return kill(pid, SIGTERM);
+            });
+  }
+
 public:
   bool setup()
   {
@@ -461,11 +475,12 @@ public:
     this->catSetup();
     this->cdSetup();
     this->grepSetup();
+    this->killSetup();
 
     return true;
   }
 
-  void executeCommand(std::string command)
+  void executeCommand(std::string &command)
   {
 
     if (std::regex_match(command, std::regex("(\\s*)(exit|quit)(\\s*)")))
@@ -474,11 +489,12 @@ public:
       return;
     }
 
-    int i = 5;
-    while (i--)
+    int i = 10;
+    while (i >= 0)
     {
-      std::cout << "Running command...\n";
+      std::cout << i << '\n';
       sleep(1);
+      i--;
     }
   }
 
@@ -493,7 +509,7 @@ public:
 
     while (isRunning)
     {
-      std::cout << this->_hostname.execute() << '@' << this->_username.execute() << ":~$ ";
+      this->printPrompt();
 
       std::string textFromPrompt, command;
       std::getline(std::cin, textFromPrompt);
@@ -506,7 +522,6 @@ public:
       if (pid == 0)
       {
         executeCommand(command);
-        childProcesses.push_back(getpid());
         exit(isRunning == false ? QUIT_COMMAND : SUCCESS);
       }
       else if (pid > 0)
@@ -516,16 +531,19 @@ public:
           int status;
           waitpid(pid, &status, 0);
 
-          if (WIFEXITED(status) && WEXITSTATUS(status) != SUCCESS ) {
+          if (WIFEXITED(status) && WEXITSTATUS(status) != SUCCESS)
+          {
             isRunning = false;
           }
         }
+        else childProcesses.push_back(pid);
       }
       else
-      {
         std::cerr << "Erro ao criar o processo filho.\n";
-      }
     }
+
+    for (pid_t pid : childProcesses)
+      this->_kill.execute(pid);
 
     return 0;
   }
