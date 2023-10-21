@@ -553,33 +553,32 @@ public:
       std::regex noQuotesPattern("((\\s*)([^\\s]+))");
       std::vector<std::string> filenames;
 
-      if (std::regex_match(args, std::regex("((\\s*)\"([^\"]+)\")+")))
+      if (std::regex_match(args, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
       {
-        std::sregex_iterator it(args.begin(), args.end(), quotesPattern);
+        std::sregex_iterator itQuotes(args.begin(), args.end(), quotesPattern);
         std::sregex_iterator end;
 
-        while (it != end)
+        while (itQuotes != end)
         {
-          std::smatch match = *it;
+          std::smatch match = *itQuotes;
           std::string value = match.str(3);
           filenames.push_back(value);
-          ++it;
+          ++itQuotes;
         }
-      } else if (std::regex_match(args, std::regex("((\\s*)([^\"]+))+")))
-      {
-        std::sregex_iterator it(args.begin(), args.end(), noQuotesPattern);
-        std::sregex_iterator end;
 
-        while (it != end)
+        args = std::regex_replace(args, quotesPattern, "");
+        std::sregex_iterator itNoQuotes(args.begin(), args.end(), noQuotesPattern);
+
+        while (itNoQuotes != end)
         {
-          std::smatch match = *it;
+          std::smatch match = *itNoQuotes;
           std::string value = match.str(3);
           filenames.push_back(value);
-          ++it;
+          ++itNoQuotes;
         }
-      } {
-        std::cerr << "There are invalid argument(s). " << command << "\n";
       }
+      else
+        std::cerr << "There are invalid argument(s): " << command << "\n";
 
       for (const std::string &filename : filenames)
       {
@@ -598,6 +597,70 @@ public:
 
         case CLOSE_FILE_FAILURE:
           std::cout << "Failed to close file.\n";
+          break;
+
+        default:
+          std::cout << "Failed to execute the command.\n";
+          break;
+        }
+      }
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(mkdir)(\\s+)(.+)")))
+    {
+
+      std::string args = std::regex_replace(command, std::regex("(\\s*)(mkdir)(\\s+)"), "");
+      std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
+      std::regex noQuotesPattern("((\\s*)([^\\s]+))");
+      std::vector<std::string> folderNames;
+
+      if (std::regex_match(args, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
+      {
+        std::sregex_iterator itQuotes(args.begin(), args.end(), quotesPattern);
+        std::sregex_iterator end;
+
+        while (itQuotes != end)
+        {
+          std::smatch match = *itQuotes;
+          std::string value = match.str(3);
+          folderNames.push_back(value);
+          ++itQuotes;
+        }
+
+        args = std::regex_replace(args, quotesPattern, "");
+        std::sregex_iterator itNoQuotes(args.begin(), args.end(), noQuotesPattern);
+
+        while (itNoQuotes != end)
+        {
+          std::smatch match = *itNoQuotes;
+          std::string value = match.str(3);
+          folderNames.push_back(value);
+          ++itNoQuotes;
+        }
+      }
+      else
+        std::cerr << "There are invalid argument(s): " << command << "\n";
+
+      for (const std::string &folderName : folderNames)
+      {
+        if (isRunningInBackgroung)
+          std::cout << '\n';
+
+        switch (this->$mkdir.execute(trim(folderName)))
+        {
+        case SUCCESS:
+          std::cout << "Folder created successfully.\n";
+          break;
+
+        case FAILURE:
+          std::cout << "Failed to create folder.\n";
           break;
 
         default:
