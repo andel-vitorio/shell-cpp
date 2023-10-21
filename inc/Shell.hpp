@@ -52,44 +52,36 @@ private:
   Command<int, const std::string &> $rmdir;
   Command<std::vector<dirent *>, const std::string &, const std::string &> $ls;
   Command<int, const std::string &, const std::string &> $mv;
-  Command<std::unique_ptr<std::string>, const std::string &, int &> $cat;
+  Command<std::unique_ptr<std::string>, const std::string &, const bool &, int &> $cat;
   Command<int, const std::string &> $cd;
   Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const std::string &, int &> $grep;
   Command<int, const pid_t &> $kill;
 
   inline void printPrompt() { std::cout << this->$hostname.execute() << '@' << this->$username.execute() << ":~$ "; }
 
-  std::vector<std::string> getArgumentsListByString(std::string &text)
+  std::vector<std::string> getArgumentsListByString(const std::string &text)
   {
-    std::regex quotesPattern("((\\s*)\"([^\"]+)\")");
-    std::regex noQuotesPattern("((\\s*)([^\\s]+))");
+    std::regex argPattern("\"([^\"]+)\"|([^\\s]+)");
     std::vector<std::string> args;
 
-    if (std::regex_match(text, std::regex("(((\\s*)\"([^\"]+)\")|((\\s*)([^\"]+)))+")))
+    std::sregex_iterator it(text.begin(), text.end(), argPattern);
+    std::sregex_iterator end;
+
+    while (it != end)
     {
-      std::sregex_iterator itQuotes(text.begin(), text.end(), quotesPattern);
-      std::sregex_iterator end;
+      std::smatch match = *it;
+      std::string value;
 
-      while (itQuotes != end)
-      {
-        std::smatch match = *itQuotes;
-        std::string value = match.str(3);
-        args.push_back(value);
-        ++itQuotes;
-      }
+      if (match[1].matched)
+        value = match.str(1);
+      else
+        value = match.str(2);
 
-      text = std::regex_replace(text, quotesPattern, "");
-      std::sregex_iterator itNoQuotes(text.begin(), text.end(), noQuotesPattern);
-
-      while (itNoQuotes != end)
-      {
-        std::smatch match = *itNoQuotes;
-        std::string value = match.str(3);
-        args.push_back(value);
-        ++itNoQuotes;
-      }
+      args.push_back(value);
+      ++it;
     }
-    else
+
+    if (args.empty())
       std::cerr << "There are invalid argument(s)\n";
 
     return args;
@@ -401,7 +393,7 @@ private:
     $cat.setName("cat")
         .setDescription("Displays the contents of a file in the shell.")
         .setAction(
-            [](const std::string &filepath, int &status) -> std::unique_ptr<std::string>
+            [](const std::string &filepath, const bool &print = true, int &status) -> std::unique_ptr<std::string>
             {
               int fd = open(filepath.c_str(), O_RDONLY);
               ssize_t nread, total = 0;
@@ -439,7 +431,7 @@ private:
 
               std::unique_ptr<std::string> content = std::make_unique<std::string>(buffer);
 
-              std::cout << content->c_str() << '\n';
+              print &&std::cout << content->c_str() << '\n';
 
               free(buffer);
               close(fd);
@@ -465,7 +457,7 @@ private:
   {
     auto grepAction = [this](const std::string &file, const std::string &pattern, int &status) -> std::unique_ptr<std::vector<std::string>>
     {
-      std::unique_ptr<std::string> content = $cat.execute(file, status);
+      std::unique_ptr<std::string> content = $cat.execute(file, false, status);
       auto lines = split(*content, '\n');
 
       std::unique_ptr<std::vector<std::string>> ans = std::make_unique<std::vector<std::string>>();
@@ -474,8 +466,13 @@ private:
         lines = split(*content, ' ');
 
       for (auto &str : lines)
+      {
         if (str.find(pattern) != std::string::npos)
+        {
           ans->push_back(str);
+          std::cout << str << '\n';
+        }
+      }
 
       return ans;
     };
@@ -817,7 +814,7 @@ public:
 
         int status;
 
-        this->$cat.execute(trim(args[0]), status);
+        this->$cat.execute(trim(args[0]), true, status);
 
         switch (status)
         {
@@ -871,6 +868,52 @@ public:
           break;
         }
       }
+
+      puts("");
+
+      if (isRunningInBackgroung)
+        this->printPrompt();
+
+      return;
+    }
+
+    if (std::regex_match(command, std::regex("(\\s*)(grep)(\\s+)(.+)(\\s+)(.+)")))
+    {
+
+      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(grep)(\\s+)"), "");
+
+      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+
+      if (args.size() == 2)
+      {
+        int status;
+
+        this->$grep.execute(trim(args[0]), trim(args[1]), status);
+
+        switch (status)
+        {
+        case SUCCESS:
+          break;
+
+        case OPEN_FILE_FAILURE:
+          std::cout << "Failed to open file.\n";
+          break;
+
+        case READ_FAILURE:
+          std::cout << "Failed to read file.\n";
+          break;
+
+        case MEMORY_ALLOCATION_FAILURE:
+          std::cout << "Memory allocation failure.\n";
+          break;
+
+        default:
+          std::cout << "Failed to execute the command.\n";
+          break;
+        }
+      }
+      else
+        std::cerr << "Invalid arguments!\n";
 
       puts("");
 
