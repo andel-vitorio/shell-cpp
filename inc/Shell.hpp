@@ -16,9 +16,11 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <memory>
+#include <fstream>
 
 #include "Command.hpp"
 #include "Utils.hpp"
+#include "IO.hpp"
 
 enum ShellStatus
 {
@@ -38,6 +40,7 @@ class Shell
 
 private:
   bool isRunning = false;
+  IO io;
 
   std::vector<pid_t> childProcesses;
 
@@ -104,9 +107,9 @@ private:
     $echo.setName("echo")
         .setDescription("Prints a message on the screen.")
         .setAction(
-            [](const std::string &message) -> std::string
+            [this](const std::string &message) -> std::string
             {
-              std::cout << message << '\n';
+              this->io.setOutputLine(message);
               return message;
             });
   }
@@ -493,6 +496,83 @@ private:
             });
   }
 
+  void execEcho(std::string &args)
+  {
+    std::string inputStream = STDIN_STREAM;
+    std::string outputStream = STDOUT_STREAM;
+    std::string line, msg = "";
+
+    if (hasCaracter(args, '<'))
+    {
+      std::regex pattern("<\\s*(\"([^\"]*)\"|([^\\s]+))");
+
+      std::smatch match;
+      if (std::regex_search(args, match, pattern))
+      {
+        if (!match[2].str().empty())
+          inputStream = match[2].str();
+        else
+          inputStream = match[3].str();
+        args = std::regex_replace(args, pattern, "");
+      }
+      else
+        std::cerr << "Invalid parameter for '<'." << std::endl;
+    }
+
+    if (hasCaracter(args, '>'))
+    {
+      std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
+
+      std::smatch match;
+      if (std::regex_search(args, match, pattern))
+      {
+        if (!match[2].str().empty())
+          outputStream = match[2].str();
+        else
+          outputStream = match[3].str();
+
+        args = std::regex_replace(args, pattern, "");
+      }
+      else
+        std::cerr << "Invalid parameter for '>'." << std::endl;
+    }
+
+    if (inputStream != STDIN_STREAM)
+    {
+      if (io.setInputStream(inputStream) == INPUT_STREAM_FAIL)
+      {
+        std::cerr << "Input file not found.\n\n";
+        return;
+      }
+
+      while (true)
+      {
+        line = io.getInputLine() + '\n';
+        if (io.isEof()) break;
+        msg += line;
+      }
+
+      io.setInputStream("stdin");
+    }
+    else
+    {
+      std::istringstream iss(args);
+      while (std::getline(iss, line))
+        msg += line;
+    }
+
+    if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
+    {
+      std::cerr << "Output file not found.\n\n";
+      return;
+    }
+
+    io.setOutputLine(trim(msg));
+    io.setOutputStream(STDOUT_STREAM);
+    
+    puts("");
+  }
+
 public:
   bool setup()
   {
@@ -517,28 +597,24 @@ public:
     return true;
   }
 
-  void executeCommand(std::string &command, bool isRunningInBackgroung)
+  void execute(std::string &script, bool isRunningInBackgroung)
   {
 
-    if (std::regex_match(command, std::regex("(\\s*)(exit|quit)(\\s*)")))
+    std::istringstream iss(script);
+    std::string command, args;
+
+    iss >> command;
+
+    if (command == "exit" or command == "quit")
     {
       isRunning = false;
       return;
     }
 
-    if (std::regex_match(command, std::regex("(\\s*)(echo)(\\s+)(.+)")))
+    if (command == "echo")
     {
-      std::string msg = std::regex_replace(command, std::regex("(\\s*)(echo)(\\s+)"), "");
-
-      if (isRunningInBackgroung)
-        std::cout << '\n';
-
-      this->$echo.execute(msg);
-      std::cout << '\n';
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
+      std::getline(iss, args);
+      execEcho(args);
       return;
     }
 
@@ -938,10 +1014,21 @@ public:
     while (isRunning)
     {
 
+      this->io.setInputStream("stdin");
+
       this->printPrompt();
 
       std::string textFromPrompt, command;
-      std::getline(std::cin, textFromPrompt);
+      textFromPrompt = this->io.getInputLine();
+
+      if (this->io.isEof())
+      {
+        puts("EOF");
+        break;
+      }
+
+      if (!io.isStdinStream())
+        std::cout << textFromPrompt << '\n';
 
       runInBackground = std::regex_match(textFromPrompt, std::regex(".*\\s+&\\s*$"));
       command = std::regex_replace(textFromPrompt, std::regex("\\s+&\\s*$"), "");
@@ -956,7 +1043,7 @@ public:
         {
           std::cout << "\nProcess running in background! (PID: " << getpid() << ")\n";
 
-          executeCommand(command, runInBackground);
+          this->execute(command, runInBackground);
 
           std::cout << "\nProcess completed! (PID: " << getpid() << ")\n\n";
           this->printPrompt();
@@ -971,7 +1058,7 @@ public:
       else
       {
         pid = getpid();
-        executeCommand(command, runInBackground);
+        this->execute(command, runInBackground);
 
         int status;
         waitpid(pid, &status, 0);

@@ -4,6 +4,7 @@
 int main () {
   Shell shell;
   shell.setup();
-  shell.init();
+  if ( shell.init() == SUCCESS ) 
+    std::cout << "\nShell finished successfully.\n";
 	return 0;
 }
