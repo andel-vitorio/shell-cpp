@@ -565,7 +565,7 @@ private:
             });
   }
 
-  void execEcho(std::string &args)
+  void echo(std::string &args)
   {
     std::string msg = "";
     std::istringstream iss;
@@ -682,7 +682,7 @@ private:
     puts("");
   }
 
-  void execPwd(std::string &args)
+  void pwd(std::string &args)
   {
     if (contains(args, '>'))
       outputRedirection(args);
@@ -690,10 +690,17 @@ private:
     puts("");
   }
 
-  void execHostname(std::string &args) {
+  void hostname(std::string &args) {
     if (contains(args, '>'))
       outputRedirection(args);
     this->io.setOutputLine(this->$hostname.execute());
+    puts("");
+  }
+
+  void username(std::string &args) {
+    if (contains(args, '>'))
+      outputRedirection(args);
+    this->io.setOutputLine(this->$username.execute());
     puts("");
   }
 
@@ -793,42 +800,11 @@ public:
     iss >> command;
     std::getline(iss, args);
 
-    if (command == "exit" or command == "quit")
-    {
-      isRunning = false;
-      return;
-    }
-
-    if (command == "echo")
-    {
-      execEcho(args);
-      return;
-    }
-
-    if (command == "pwd")
-    {
-      execPwd(args);
-      return;
-    }
-
-    if (command == "hostname")
-    {
-      execHostname(args);
-      return;
-    }
-
-    if (std::regex_match(command, std::regex("(\\s*)(username)(\\s*)")))
-    {
-
-      if (isRunningInBackgroung)
-        std::cout << '\n';
-
-      std::cout << this->$username.execute() << "\n\n";
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-      return;
-    }
+    if (command == "exit" or command == "quit") isRunning = false;
+    else if (command == "echo") this->echo(args);
+    else if (command == "pwd") this->pwd(args);
+    else if (command == "hostname") this->hostname(args);
+    else if (command == "username") this->username(args);
 
     if (std::regex_match(command, std::regex("(\\s*)(touch)(\\s+)(.+)")))
     {
