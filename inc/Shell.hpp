@@ -909,7 +909,56 @@ private:
     puts("");
   }
 
-  void mv(std::string &args) {}
+  void mv(std::string &args)
+  {
+    std::istringstream iss;
+
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
+      this->inputRedirection(args);
+
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
+      this->outputRedirection(args);
+
+    if (io.isStdinStream())
+    {
+      iss = std::istringstream(args);
+      io.setInputStream(iss);
+    }
+
+    std::string content = this->io.getAllInputLines();
+
+    std::vector<std::string> paths = this->getItemsName(content);
+
+    if (paths.size() > 1)
+    {
+      switch (this->$mv.execute(trim(paths[0]), trim(paths[1])))
+      {
+      case SUCCESS:
+        std::cout << "Moved or renamed successfully.\n";
+        break;
+
+      case FILE_NOT_FOUND:
+        std::cerr << "File not found.\n";
+        break;
+
+      case SAME_SOURCE_N_TARGET:
+        std::cerr << "The target and the source are the same.\n";
+        break;
+
+      case FAILURE:
+        std::cerr << "Failed to move or rename.\n";
+        break;
+
+      default:
+        std::cerr << "Failed to execute the command.\n";
+        break;
+      }
+    }
+    else
+      std::cerr << "Invalid arguments!\n";
+
+    puts("");
+  }
 
   void cd(std::string &args) {}
 
@@ -1039,49 +1088,6 @@ public:
       grep(args, fromPipeline);
     else
       std::cerr << "Command not found: " << command << "\n\n";
-
-    if (std::regex_match(command, std::regex("(\\s*)(mv)(\\s+)(.+)(\\s+)(.+)")))
-    {
-
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(mv)(\\s+)"), "");
-
-      std::vector<std::string> args = this->getItemsName(commandArgumentsString);
-
-      if (args.size() == 2)
-      {
-        switch (this->$mv.execute(trim(args[0]), trim(args[1])))
-        {
-        case SUCCESS:
-          std::cout << "Moved or renamed successfully.\n";
-          break;
-
-        case FILE_NOT_FOUND:
-          std::cerr << "File not found.\n";
-          break;
-
-        case SAME_SOURCE_N_TARGET:
-          std::cerr << "The target and the source are the same.\n";
-          break;
-
-        case FAILURE:
-          std::cerr << "Failed to move or rename.\n";
-          break;
-
-        default:
-          std::cerr << "Failed to execute the command.\n";
-          break;
-        }
-      }
-      else
-        std::cerr << "Invalid arguments!\n";
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
-      return;
-    }
 
     if (std::regex_match(command, std::regex("(\\s*)(cd)(\\s+)(.+)")))
     {
