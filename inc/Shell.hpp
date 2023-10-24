@@ -68,7 +68,6 @@ private:
   inline void inputRedirection(std::string &args)
   {
     std::string inputStream = STDIN_STREAM;
-    puts("Teste: ");
 
     std::regex pattern("<\\s*(\"([^\"]*)\"|([^\\s]+))");
 
@@ -711,38 +710,46 @@ private:
 
   void touch(std::string &args)
   {
-    std::vector<std::string> argsList = this->getItemsName(args);
-    int status;
+    std::istringstream iss;
+
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
+      this->inputRedirection(args);
 
     if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
-      outputRedirection(args);
+      this->outputRedirection(args);
 
-    if (argsList.size() > 0)
-      status = this->$touch.execute(trim(argsList[0]));
-    else
-      std::cerr << "Not enough parameters!\n";
-
-    switch (status)
+    if (io.isStdinStream())
     {
-    case SUCCESS:
-      break;
-
-    case OPEN_FILE_FAILURE:
-      std::cout << "Failed to open file.\n";
-      break;
-
-    case READ_FAILURE:
-      std::cout << "Failed to read file.\n";
-      break;
-
-    case MEMORY_ALLOCATION_FAILURE:
-      std::cout << "Memory allocation failure.\n";
-      break;
-
-    default:
-      std::cout << "Failed to execute the command.\n";
-      break;
+      iss = std::istringstream(args);
+      io.setInputStream(iss);
     }
+
+    std::string content = this->io.getAllInputLines();    
+    
+    for (const std::string &filename : this->getItemsName(content)) {
+      switch (this->$touch.execute(trim(filename)))
+      {
+      case SUCCESS:
+        break;
+
+      case OPEN_FILE_FAILURE:
+        std::cout << "Failed to open file.\n";
+        break;
+
+      case READ_FAILURE:
+        std::cout << "Failed to read file.\n";
+        break;
+
+      case MEMORY_ALLOCATION_FAILURE:
+        std::cout << "Memory allocation failure.\n";
+        break;
+
+      default:
+        std::cout << "Failed to execute the command.\n";
+        break;
+      }
+    }
+
 
     io.setOutputStream(STDOUT_STREAM);
     puts("");
@@ -786,7 +793,41 @@ private:
     puts("");
   }
 
-  void rmfile(std::string &args) {}
+  void rmfile(std::string &args)
+  {
+    std::istringstream iss;
+
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
+      this->inputRedirection(args);
+
+    if (io.isStdinStream())
+    {
+      iss = std::istringstream(args);
+      io.setInputStream(iss);
+    }
+
+    std::string content = this->io.getAllInputLines();
+
+    for (const std::string &filename : this->getItemsName(content))
+    {
+      switch (this->$rmfile.execute(trim(filename)))
+      {
+      case SUCCESS:
+        std::cout << "File removed successfully.\n";
+        break;
+
+      case FAILURE:
+        std::cout << "Failed to remove file.\n";
+        break;
+
+      default:
+        std::cout << "Failed to execute the command.\n";
+        break;
+      }
+    }
+
+    puts("");
+  }
 
   void ls(std::string &args) {}
 
@@ -920,12 +961,8 @@ public:
       this->cd(args);
     else if (command == "grep")
       grep(args, fromPipeline);
-
-    if (std::regex_match(command, std::regex("(\\s*)(mkdir)(\\s+)(.+)")))
-    {
-
-      return;
-    }
+    else
+      std::cerr << "Command not found: " << command << "\n\n";
 
     if (std::regex_match(command, std::regex("(\\s*)(rmfile)(\\s+)(.+)")))
     {
@@ -1103,8 +1140,6 @@ public:
 
       return;
     }
-
-    std::cerr << "Command not found: " << command << "\n\n";
   }
 
   int init()
