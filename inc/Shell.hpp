@@ -307,8 +307,10 @@ private:
                   if (dir == nullptr)
                     continue;
 
-                  if (list) this->io.setOutputLine(std::string(dir->d_name));
-                  else this->io.setOutput(std::string(dir->d_name) + "\t");
+                  if (list)
+                    this->io.setOutputLine(std::string(dir->d_name));
+                  else
+                    this->io.setOutput(std::string(dir->d_name) + "\t");
                 }
 
                 if (!list)
@@ -769,8 +771,6 @@ private:
 
     std::string content = this->io.getAllInputLines();
 
-    std::cout << content << '\n';
-
     for (const std::string &folderName : this->getItemsName(content))
     {
       switch (this->$mkdir.execute(trim(folderName)))
@@ -873,7 +873,41 @@ private:
     puts("");
   }
 
-  void rmDir(std::string &args) {}
+  void rmDir(std::string &args)
+  {
+    std::istringstream iss;
+
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
+      this->inputRedirection(args);
+
+    if (io.isStdinStream())
+    {
+      iss = std::istringstream(args);
+      io.setInputStream(iss);
+    }
+
+    std::string content = this->io.getAllInputLines();
+
+    for (const std::string &filename : this->getItemsName(content))
+    {
+      switch (this->$rmdir.execute(trim(filename)))
+      {
+      case SUCCESS:
+        std::cout << "Folder removed successfully.\n";
+        break;
+
+      case FAILURE:
+        std::cout << "Failed to remove folder.\n";
+        break;
+
+      default:
+        std::cout << "Failed to execute the command.\n";
+        break;
+      }
+    }
+
+    puts("");
+  }
 
   void mv(std::string &args) {}
 
@@ -1005,40 +1039,6 @@ public:
       grep(args, fromPipeline);
     else
       std::cerr << "Command not found: " << command << "\n\n";
-
-    if (std::regex_match(command, std::regex("(\\s*)(rmdir)(\\s+)(.+)")))
-    {
-
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(rmdir)(\\s+)"), "");
-
-      for (const std::string &filename : this->getItemsName(commandArgumentsString))
-      {
-        if (isRunningInBackgroung)
-          std::cout << '\n';
-
-        switch (this->$rmdir.execute(trim(filename)))
-        {
-        case SUCCESS:
-          std::cout << "Folder removed successfully.\n";
-          break;
-
-        case FAILURE:
-          std::cout << "Failed to remove folder.\n";
-          break;
-
-        default:
-          std::cout << "Failed to execute the command.\n";
-          break;
-        }
-      }
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
-      return;
-    }
 
     if (std::regex_match(command, std::regex("(\\s*)(mv)(\\s+)(.+)(\\s+)(.+)")))
     {
