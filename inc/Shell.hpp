@@ -57,7 +57,7 @@ private:
   Command<int, const std::string &, const std::string &> $mv;
   Command<std::unique_ptr<std::string>, const std::string &, const bool &, int &> $cat;
   Command<int, const std::string &> $cd;
-  Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const std::string &, int &> $grep;
+  Command<std::unique_ptr<std::vector<std::string>>, const std::string &, const bool &, const std::string &, int &> $grep;
   Command<int, const pid_t &> $kill;
 
   inline void printPrompt() { std::cout << this->$hostname.execute() << '@' << this->$username.execute() << ":~$ "; }
@@ -459,26 +459,37 @@ private:
 
   void grepSetup()
   {
-    auto grepAction = [this](const std::string &file, const std::string &pattern, int &status) -> std::unique_ptr<std::vector<std::string>>
+    auto grepAction = [this](const std::string &source, const bool &sourceIsFile, const std::string &pattern, int &status) -> std::unique_ptr<std::vector<std::string>>
     {
-      std::unique_ptr<std::string> content = $cat.execute(file, false, status);
-      auto lines = split(*content, '\n');
+      std::unique_ptr<std::string> content;
 
-      std::unique_ptr<std::vector<std::string>> ans = std::make_unique<std::vector<std::string>>();
+      if (sourceIsFile)
+        content = $cat.execute(source, false, status);
+      else
+        content = std::make_unique<std::string>(source);
 
-      if (lines.size() == 1)
-        lines = split(*content, ' ');
+      if (content) {
+        auto lines = split(*content, '\n');
 
-      for (auto &str : lines)
-      {
-        if (str.find(pattern) != std::string::npos)
+        std::unique_ptr<std::vector<std::string>> ans = std::make_unique<std::vector<std::string>>();
+
+        if (lines.size() == 1)
+          lines = split(*content, ' ');
+
+        for (auto &str : lines)
         {
-          ans->push_back(str);
-          this->io.setOutputLine(str);
+          if (str.find(pattern) != std::string::npos)
+          {
+            ans->push_back(str);
+            this->io.setOutputLine(str);
+          }
         }
+        
+        status = SUCCESS;
+        return ans;
       }
-
-      return ans;
+      
+      return nullptr;
     };
 
     $grep.setName("grep")
@@ -634,14 +645,15 @@ private:
       }
     }
 
-    io.setOutputStream(STDOUT_STREAM);
+    // io.setOutputStream(STDOUT_STREAM);
     puts("");
   }
 
-  void execGrep(std::string &args)
+  void execGrep(std::string &args, bool fromPipeline = false)
   {
     std::vector<std::string> argsList = this->getItemsName(args);
     std::string outputStream = STDOUT_STREAM;
+    int status;
 
     if (contains(args, '>'))
     {
@@ -667,36 +679,44 @@ private:
       return;
     }
 
-    if (argsList.size() > 1)
+    if (fromPipeline)
     {
-      int status;
+      std::string content;
 
-      this->$grep.execute(trim(argsList[0]), trim(argsList[1]), status);
+      while (!this->io.isEof())
+        content += this->io.getInputLine() + '\n';
 
-      switch (status)
-      {
-      case SUCCESS:
-        break;
-
-      case OPEN_FILE_FAILURE:
-        std::cout << "Failed to open file.\n";
-        break;
-
-      case READ_FAILURE:
-        std::cout << "Failed to read file.\n";
-        break;
-
-      case MEMORY_ALLOCATION_FAILURE:
-        std::cout << "Memory allocation failure.\n";
-        break;
-
-      default:
-        std::cout << "Failed to execute the command.\n";
-        break;
-      }
+      this->$grep.execute(content, false, trim(argsList[0]), status);
     }
     else
-      std::cerr << "Not enough parameters!\n";
+    {
+      if (argsList.size() > 1) 
+        this->$grep.execute(trim(argsList[0]), true, trim(argsList[1]), status);
+      else
+        std::cerr << "Not enough parameters!\n";
+    }
+
+    switch (status)
+    {
+    case SUCCESS:
+      break;
+
+    case OPEN_FILE_FAILURE:
+      std::cout << "Failed to open file.\n";
+      break;
+
+    case READ_FAILURE:
+      std::cout << "Failed to read file.\n";
+      break;
+
+    case MEMORY_ALLOCATION_FAILURE:
+      std::cout << "Memory allocation failure.\n";
+      break;
+
+    default:
+      std::cout << "Failed to execute the command.\n";
+      break;
+    }
 
     io.setOutputStream(STDOUT_STREAM);
     puts("");
@@ -705,66 +725,64 @@ private:
   void executePipeline(const std::string &pipeline)
   {
     std::vector<std::string> commands = split(pipeline, '|');
-    int prev_pipe[2];
-    int current_pipe[2];
+    int previousPipe[2];
+    int currentPipe[2];
+    pipe(previousPipe);
 
     for (size_t i = 0; i < commands.size(); i++)
     {
-      if (pipe(current_pipe) < 0)
+      std::string command = trim(commands[i]);
+
+      if (i < commands.size() - 1)
       {
-        std::cerr << "Erro ao criar pipe." << std::endl;
-        return;
+        pipe(currentPipe);
       }
 
       pid_t pid = fork();
 
-      if (pid < 0)
-      {
-        std::cerr << "Erro ao criar processo filho." << std::endl;
-        return;
-      }
-
       if (pid == 0)
       {
-        if (i > 0)
-        {
-          // Redireciona a entrada do processo atual para a saída do processo anterior.
-          dup2(prev_pipe[0], STDIN_FILENO);
-          close(prev_pipe[0]);
-          close(prev_pipe[1]);
-        }
+        close(previousPipe[1]);
 
         if (i < commands.size() - 1)
         {
-          // Redireciona a saída do processo atual para o próximo processo no pipeline.
-          dup2(current_pipe[1], STDOUT_FILENO);
-          close(current_pipe[0]);
-          close(current_pipe[1]);
+          dup2(currentPipe[1], STDOUT_FILENO);
+          close(currentPipe[0]);
         }
 
-        // Executa o comando atual.
-        this->execute(commands[i], false);
+        if (i == 0)
+          io.setInputStream(STDIN_STREAM);
+        else
+          dup2(previousPipe[0], STDIN_FILENO);
+
+        this->execute(command, false, true);
+
+        close(previousPipe[0]);
+
+        if (i < commands.size() - 1)
+          close(currentPipe[1]);
 
         exit(0);
       }
+      else if (pid < 0)
+      {
+        std::cerr << "Failed to fork a child process." << std::endl;
+        exit(1);
+      }
       else
       {
-        if (i > 0)
-        {
-          close(prev_pipe[0]);
-          close(prev_pipe[1]);
-        }
+        close(previousPipe[0]);
 
-        prev_pipe[0] = current_pipe[0];
-        prev_pipe[1] = current_pipe[1];
+        if (i < commands.size() - 1)
+        {
+          close(currentPipe[1]);
+          previousPipe[0] = currentPipe[0];
+        }
       }
     }
 
-    // Espere que todos os processos filhos terminem.
     for (size_t i = 0; i < commands.size(); i++)
-    {
-      wait(nullptr);
-    }
+      wait(NULL);
   }
 
 public:
@@ -791,7 +809,7 @@ public:
     return true;
   }
 
-  void execute(std::string &script, bool isRunningInBackgroung)
+  void execute(std::string &script, bool isRunningInBackgroung, bool fromPipeline = false)
   {
 
     std::istringstream iss(script);
@@ -1109,7 +1127,7 @@ public:
 
     if (command == "grep")
     {
-      execGrep(args);
+      execGrep(args, fromPipeline);
       return;
     }
 

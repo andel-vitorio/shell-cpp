@@ -2,3 +2,6 @@ No jardim, uma rosa só, já é muito,
 No jardim, as rosas fazem um espetáculo glorioso.
 No entanto, nem todas as rosas são iguais,
 No jardim, todas as rosas são preciosas.
+
+cat source.txt | grep No
+grep source.txt No
