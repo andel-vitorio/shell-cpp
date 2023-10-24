@@ -22,6 +22,9 @@
 #include "Utils.hpp"
 #include "IO.hpp"
 
+#define INPUT_REDIRECTION_SYMBOL '<'
+#define OUTPUT_REDIRECTION_SYMBOL '>'
+
 enum ShellStatus
 {
   SUCCESS,
@@ -79,7 +82,7 @@ private:
       args = std::regex_replace(args, pattern, "");
     }
     else
-      std::cerr << "Invalid parameter for '<'." << std::endl;
+      std::cerr << "Invalid parameter for INPUT_REDIRECTION_SYMBOL." << std::endl;
 
     if (inputStream != STDIN_STREAM)
     {
@@ -109,7 +112,7 @@ private:
       args = std::regex_replace(args, pattern, "");
     }
     else
-      std::cerr << "Invalid parameter for '>'." << std::endl;
+      std::cerr << "Invalid parameter for OUTPUT_REDIRECTION_SYMBOL." << std::endl;
 
     if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
     {
@@ -276,7 +279,7 @@ private:
     $ls.setName("ls")
         .setDescription("Generate a new directory.")
         .setAction(
-            [](const std::string &path, const std::string &mode) -> std::vector<dirent *>
+            [this](const std::string &path, const std::string &mode) -> std::vector<dirent *>
             {
               DIR *dir = opendir(path.c_str());
               dirent *d;
@@ -307,11 +310,11 @@ private:
                 {
                   if (dir == nullptr)
                     continue;
-                  std::cout << dir->d_name << (list ? '\n' : '\t');
+                  this->io.setOutput(dir->d_name + (list ? '\n' : '\t'));
                 }
 
                 if (!list)
-                  std::cout << '\n';
+                  this->io.setOutputLine("");
               }
 
               return dirs;
@@ -570,10 +573,10 @@ private:
     std::string msg = "";
     std::istringstream iss;
 
-    if (contains(args, '<'))
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
       inputRedirection(args);
 
-    if (contains(args, '>'))
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
       outputRedirection(args);
 
     if (io.isStdinStream())
@@ -590,12 +593,12 @@ private:
     io.setInputStream(STDIN_STREAM);
   }
 
-  void execCat(std::string &args)
+  void cat(std::string &args)
   {
     std::vector<std::string> items = this->getItemsName(args);
     std::string msg = "";
 
-    if (contains(args, '>'))
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
       outputRedirection(args);
 
     if (items.size() > 0)
@@ -631,12 +634,12 @@ private:
     puts("");
   }
 
-  void execGrep(std::string &args, bool fromPipeline = false)
+  void grep(std::string &args, bool fromPipeline = false)
   {
     std::vector<std::string> argsList = this->getItemsName(args);
     int status;
 
-    if (contains(args, '>'))
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
       outputRedirection(args);
 
     if (fromPipeline)
@@ -684,7 +687,7 @@ private:
 
   void pwd(std::string &args)
   {
-    if (contains(args, '>'))
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
       outputRedirection(args);
     this->$pwd.execute();
     puts("");
@@ -692,7 +695,7 @@ private:
 
   void hostname(std::string &args)
   {
-    if (contains(args, '>'))
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
       outputRedirection(args);
     this->io.setOutputLine(this->$hostname.execute());
     puts("");
@@ -700,7 +703,7 @@ private:
 
   void username(std::string &args)
   {
-    if (contains(args, '>'))
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
       outputRedirection(args);
     this->io.setOutputLine(this->$username.execute());
     puts("");
@@ -711,7 +714,7 @@ private:
     std::vector<std::string> argsList = this->getItemsName(args);
     int status;
 
-    if (contains(args, '>'))
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
       outputRedirection(args);
 
     if (argsList.size() > 0)
@@ -744,6 +747,54 @@ private:
     io.setOutputStream(STDOUT_STREAM);
     puts("");
   }
+
+  void mkDir(std::string &args)
+  {
+    std::istringstream iss;
+
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
+      this->inputRedirection(args);
+
+    if (io.isStdinStream())
+    {
+      iss = std::istringstream(args);
+      io.setInputStream(iss);
+    }
+
+    std::string content = this->io.getAllInputLines();
+
+    std::cout << content << '\n';
+
+    for (const std::string &folderName : this->getItemsName(content))
+    {
+      switch (this->$mkdir.execute(trim(folderName)))
+      {
+      case SUCCESS:
+        std::cout << "Folder created successfully.\n";
+        break;
+
+      case FAILURE:
+        std::cout << "Failed to create folder.\n";
+        break;
+
+      default:
+        std::cout << "Failed to execute the command.\n";
+        break;
+      }
+    }
+
+    puts("");
+  }
+
+  void rmfile(std::string &args) {}
+
+  void ls(std::string &args) {}
+
+  void rmDir(std::string &args) {}
+
+  void mv(std::string &args) {}
+
+  void cd(std::string &args) {}
 
   void execPipeline(const std::string &pipeline)
   {
@@ -853,75 +904,25 @@ public:
       this->username(args);
     else if (command == "touch")
       this->touch(args);
-
-    if (std::regex_match(command, std::regex("(\\s*)(touch)(\\s+)(.+)")))
-    {
-
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(touch)(\\s+)"), "");
-
-      for (const std::string &filename : this->getItemsName(commandArgumentsString))
-      {
-        if (isRunningInBackgroung)
-          std::cout << '\n';
-
-        switch (this->$touch.execute(trim(filename)))
-        {
-        case SUCCESS:
-          std::cout << "File created successfully.\n";
-          break;
-
-        case OPEN_FILE_FAILURE:
-          std::cout << "Failed to create file.\n";
-          break;
-
-        case CLOSE_FILE_FAILURE:
-          std::cout << "Failed to close file.\n";
-          break;
-
-        default:
-          std::cout << "Failed to execute the command.\n";
-          break;
-        }
-      }
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
-      return;
-    }
+    else if (command == "mkdir")
+      this->mkDir(args);
+    else if (command == "rmfile")
+      this->rmfile(args);
+    else if (command == "ls")
+      this->ls(args);
+    else if (command == "rmdir")
+      this->rmDir(args);
+    else if (command == "mv")
+      this->mv(args);
+    else if (command == "cat")
+      cat(args);
+    else if (command == "cd")
+      this->cd(args);
+    else if (command == "grep")
+      grep(args, fromPipeline);
 
     if (std::regex_match(command, std::regex("(\\s*)(mkdir)(\\s+)(.+)")))
     {
-
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(mkdir)(\\s+)"), "");
-
-      for (const std::string &folderName : this->getItemsName(commandArgumentsString))
-      {
-        if (isRunningInBackgroung)
-          std::cout << '\n';
-
-        switch (this->$mkdir.execute(trim(folderName)))
-        {
-        case SUCCESS:
-          std::cout << "Folder created successfully.\n";
-          break;
-
-        case FAILURE:
-          std::cout << "Failed to create folder.\n";
-          break;
-
-        default:
-          std::cout << "Failed to execute the command.\n";
-          break;
-        }
-      }
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
 
       return;
     }
@@ -1073,12 +1074,6 @@ public:
       return;
     }
 
-    if (command == "cat")
-    {
-      execCat(args);
-      return;
-    }
-
     if (std::regex_match(command, std::regex("(\\s*)(cd)(\\s+)(.+)")))
     {
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(cd)(\\s+)"), "");
@@ -1106,12 +1101,6 @@ public:
       if (isRunningInBackgroung)
         this->printPrompt();
 
-      return;
-    }
-
-    if (command == "grep")
-    {
-      execGrep(args, fromPipeline);
       return;
     }
 

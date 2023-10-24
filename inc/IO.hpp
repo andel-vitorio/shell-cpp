@@ -143,6 +143,11 @@ public:
     *output << line << std::endl;
   }
 
+  void setOutput(const std::string &str)
+  {
+    *output << str;
+  }
+
   ~IO()
   {
     if (input != &std::cin)
