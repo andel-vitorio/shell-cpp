@@ -1,2 +1,15 @@
-akiry
-
+.
+..
+.git
+.gitignore
+.vscode
+Makefile
+Teste
+inc
+input
+lib
+obj
+output
+shell-project
+source.txt
+src

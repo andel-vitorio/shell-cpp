@@ -142,9 +142,6 @@ private:
       ++it;
     }
 
-    if (args.empty())
-      std::cerr << "There are invalid argument(s)\n";
-
     return args;
   }
 
@@ -309,7 +306,9 @@ private:
                 {
                   if (dir == nullptr)
                     continue;
-                  this->io.setOutput(dir->d_name + (list ? '\n' : '\t'));
+
+                  if (list) this->io.setOutputLine(std::string(dir->d_name));
+                  else this->io.setOutput(std::string(dir->d_name) + "\t");
                 }
 
                 if (!list)
@@ -724,9 +723,10 @@ private:
       io.setInputStream(iss);
     }
 
-    std::string content = this->io.getAllInputLines();    
-    
-    for (const std::string &filename : this->getItemsName(content)) {
+    std::string content = this->io.getAllInputLines();
+
+    for (const std::string &filename : this->getItemsName(content))
+    {
       switch (this->$touch.execute(trim(filename)))
       {
       case SUCCESS:
@@ -749,7 +749,6 @@ private:
         break;
       }
     }
-
 
     io.setOutputStream(STDOUT_STREAM);
     puts("");
@@ -829,7 +828,50 @@ private:
     puts("");
   }
 
-  void ls(std::string &args) {}
+  void ls(std::string &args)
+  {
+    std::string path = "./", mode = "";
+    std::istringstream iss;
+
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
+      this->inputRedirection(args);
+
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
+      this->outputRedirection(args);
+
+    if (io.isStdinStream())
+    {
+      iss = std::istringstream(args);
+      io.setInputStream(iss);
+    }
+
+    std::string content = this->io.getAllInputLines();
+
+    if (content != "")
+    {
+      std::vector<std::string> args = this->getItemsName(content);
+      if (!args.empty())
+      {
+        for (const std::string &arg : args)
+        {
+          if (std::regex_match(arg, std::regex("(\\s*)(-)([^\\s]+)(\\s*)")))
+          {
+            if (std::regex_match(arg, std::regex("(\\s*)(-a|-l|-la|-al)(\\s*)")))
+              mode = arg;
+            else
+              std::cout << "ls: Argumento inválido: " << arg << "\n";
+          }
+          else
+            path = arg;
+        }
+      }
+    }
+
+    this->$ls.execute(path, mode);
+    this->io.setOutputStream(STDOUT_STREAM);
+
+    puts("");
+  }
 
   void rmDir(std::string &args) {}
 
@@ -963,76 +1005,6 @@ public:
       grep(args, fromPipeline);
     else
       std::cerr << "Command not found: " << command << "\n\n";
-
-    if (std::regex_match(command, std::regex("(\\s*)(rmfile)(\\s+)(.+)")))
-    {
-
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(rmfile)(\\s+)"), "");
-
-      for (const std::string &filename : this->getItemsName(commandArgumentsString))
-      {
-        if (isRunningInBackgroung)
-          std::cout << '\n';
-
-        switch (this->$rmfile.execute(trim(filename)))
-        {
-        case SUCCESS:
-          std::cout << "File removed successfully.\n";
-          break;
-
-        case FAILURE:
-          std::cout << "Failed to remove file.\n";
-          break;
-
-        default:
-          std::cout << "Failed to execute the command.\n";
-          break;
-        }
-      }
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
-      return;
-    }
-
-    if (std::regex_match(command, std::regex("(\\s*)(ls)(\\s+(.+)|$)")))
-    {
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(ls)(\\s*)"), "");
-      std::string path = "./", mode = "";
-
-      if (commandArgumentsString != "")
-      {
-        std::vector<std::string> args = this->getItemsName(commandArgumentsString);
-        if (!args.empty())
-        {
-
-          for (const std::string &arg : args)
-          {
-            if (std::regex_match(arg, std::regex("(\\s*)(-)([^\\s]+)(\\s*)")))
-            {
-              if (std::regex_match(arg, std::regex("(\\s*)(-a|-l|-la|-al)(\\s*)")))
-                mode = arg;
-              else
-                std::cout << "ls: Argumento inválido: " << arg << "\n";
-            }
-            else
-              path = arg;
-          }
-        }
-      }
-
-      this->$ls.execute(path, mode);
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
-      return;
-    }
 
     if (std::regex_match(command, std::regex("(\\s*)(rmdir)(\\s+)(.+)")))
     {
