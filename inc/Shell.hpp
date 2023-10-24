@@ -62,6 +62,62 @@ private:
 
   inline void printPrompt() { std::cout << this->$hostname.execute() << '@' << this->$username.execute() << ":~$ "; }
 
+  inline void inputRedirection(std::string &args)
+  {
+    std::string inputStream = STDIN_STREAM;
+    puts("Teste: ");
+
+    std::regex pattern("<\\s*(\"([^\"]*)\"|([^\\s]+))");
+
+    std::smatch match;
+    if (std::regex_search(args, match, pattern))
+    {
+      if (!match[2].str().empty())
+        inputStream = match[2].str();
+      else
+        inputStream = match[3].str();
+      args = std::regex_replace(args, pattern, "");
+    }
+    else
+      std::cerr << "Invalid parameter for '<'." << std::endl;
+
+    if (inputStream != STDIN_STREAM)
+    {
+      if (io.setInputStream(inputStream) == INPUT_STREAM_FAIL)
+      {
+        std::cerr << "Input file not found.\n\n";
+        return;
+      }
+    }
+    else
+      io.setInputStream(STDIN_STREAM);
+  }
+
+  inline void outputRedirection(std::string &args)
+  {
+    std::string outputStream = STDOUT_STREAM;
+    std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
+
+    std::smatch match;
+    if (std::regex_search(args, match, pattern))
+    {
+      if (!match[2].str().empty())
+        outputStream = match[2].str();
+      else
+        outputStream = match[3].str();
+
+      args = std::regex_replace(args, pattern, "");
+    }
+    else
+      std::cerr << "Invalid parameter for '>'." << std::endl;
+
+    if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
+    {
+      std::cerr << "Output file not found.\n\n";
+      return;
+    }
+  }
+
   std::vector<std::string> getItemsName(const std::string &text)
   {
     std::regex argPattern("\"([^\"]+)\"|([^\\s]+)");
@@ -119,10 +175,10 @@ private:
     $pwd.setName("pwd")
         .setDescription("Gets the current directory.")
         .setAction(
-            []() -> std::string
+            [this]() -> std::string
             {
               const std::string &currentDir = get_current_dir_name();
-              std::cout << currentDir << '\n';
+              this->io.setOutputLine(currentDir);
               return currentDir;
             });
   }
@@ -468,7 +524,8 @@ private:
       else
         content = std::make_unique<std::string>(source);
 
-      if (content) {
+      if (content)
+      {
         auto lines = split(*content, '\n');
 
         std::unique_ptr<std::vector<std::string>> ans = std::make_unique<std::vector<std::string>>();
@@ -484,11 +541,11 @@ private:
             this->io.setOutputLine(str);
           }
         }
-        
+
         status = SUCCESS;
         return ans;
       }
-      
+
       return nullptr;
     };
 
@@ -510,114 +567,39 @@ private:
 
   void execEcho(std::string &args)
   {
-    std::string inputStream = STDIN_STREAM;
-    std::string outputStream = STDOUT_STREAM;
-    std::string line, msg = "";
+    std::string msg = "";
+    std::istringstream iss;
 
     if (contains(args, '<'))
-    {
-      std::regex pattern("<\\s*(\"([^\"]*)\"|([^\\s]+))");
-
-      std::smatch match;
-      if (std::regex_search(args, match, pattern))
-      {
-        if (!match[2].str().empty())
-          inputStream = match[2].str();
-        else
-          inputStream = match[3].str();
-        args = std::regex_replace(args, pattern, "");
-      }
-      else
-        std::cerr << "Invalid parameter for '<'." << std::endl;
-    }
+      inputRedirection(args);
 
     if (contains(args, '>'))
+      outputRedirection(args);
+
+    if (io.isStdinStream())
     {
-      std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
-
-      std::smatch match;
-      if (std::regex_search(args, match, pattern))
-      {
-        if (!match[2].str().empty())
-          outputStream = match[2].str();
-        else
-          outputStream = match[3].str();
-
-        args = std::regex_replace(args, pattern, "");
-      }
-      else
-        std::cerr << "Invalid parameter for '>'." << std::endl;
-    }
-
-    std::istringstream iss(args);
-
-    if (inputStream != STDIN_STREAM)
-    {
-      if (io.setInputStream(inputStream) == INPUT_STREAM_FAIL)
-      {
-        std::cerr << "Input file not found.\n\n";
-        return;
-      }
-    }
-    else
+      iss = std::istringstream(args);
       io.setInputStream(iss);
-
-    while (true)
-    {
-      line = io.getInputLine() + '\n';
-      if (io.isEof())
-        break;
-      msg += line;
     }
 
-    if (inputStream != STDIN_STREAM)
-      io.setInputStream(STDIN_STREAM);
-
-    if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
-    {
-      std::cerr << "Output file not found.\n\n";
-      return;
-    }
+    msg = this->io.getAllInputLines();
 
     io.setOutputLine(trim(msg));
-    io.setOutputStream(STDOUT_STREAM);
 
-    puts("");
+    io.setOutputStream(STDOUT_STREAM);
+    io.setInputStream(STDIN_STREAM);
   }
 
   void execCat(std::string &args)
   {
     std::vector<std::string> items = this->getItemsName(args);
-    std::string outputStream = STDOUT_STREAM;
-    std::string line, msg = "";
+    std::string msg = "";
 
     if (contains(args, '>'))
-    {
-      std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
-
-      std::smatch match;
-      if (std::regex_search(args, match, pattern))
-      {
-        if (!match[2].str().empty())
-          outputStream = match[2].str();
-        else
-          outputStream = match[3].str();
-
-        args = std::regex_replace(args, pattern, "");
-      }
-      else
-        std::cerr << "Invalid parameter for '>'." << std::endl;
-    }
-
-    if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
-    {
-      std::cerr << "Output file not found.\n\n";
-      return;
-    }
+      outputRedirection(args);
 
     if (items.size() > 0)
     {
-
       int status;
 
       this->$cat.execute(trim(items[0]), true, status);
@@ -645,39 +627,17 @@ private:
       }
     }
 
-    // io.setOutputStream(STDOUT_STREAM);
+    io.setOutputStream(STDOUT_STREAM);
     puts("");
   }
 
   void execGrep(std::string &args, bool fromPipeline = false)
   {
     std::vector<std::string> argsList = this->getItemsName(args);
-    std::string outputStream = STDOUT_STREAM;
     int status;
 
     if (contains(args, '>'))
-    {
-      std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
-
-      std::smatch match;
-      if (std::regex_search(args, match, pattern))
-      {
-        if (!match[2].str().empty())
-          outputStream = match[2].str();
-        else
-          outputStream = match[3].str();
-
-        args = std::regex_replace(args, pattern, "");
-      }
-      else
-        std::cerr << "Invalid parameter for '>'." << std::endl;
-    }
-
-    if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
-    {
-      std::cerr << "Output file not found.\n\n";
-      return;
-    }
+      outputRedirection(args);
 
     if (fromPipeline)
     {
@@ -690,7 +650,7 @@ private:
     }
     else
     {
-      if (argsList.size() > 1) 
+      if (argsList.size() > 1)
         this->$grep.execute(trim(argsList[0]), true, trim(argsList[1]), status);
       else
         std::cerr << "Not enough parameters!\n";
@@ -722,7 +682,15 @@ private:
     puts("");
   }
 
-  void executePipeline(const std::string &pipeline)
+  void execPwd(std::string &args)
+  {
+    if (contains(args, '>'))
+      outputRedirection(args);
+    this->$pwd.execute();
+    puts("");
+  }
+
+  void execPipeline(const std::string &pipeline)
   {
     std::vector<std::string> commands = split(pipeline, '|');
     int previousPipe[2];
@@ -830,17 +798,9 @@ public:
       return;
     }
 
-    if (std::regex_match(command, std::regex("(\\s*)(pwd)(\\s*)")))
+    if (command == "pwd")
     {
-
-      if (isRunningInBackgroung)
-        std::cout << '\n';
-
-      this->$pwd.execute();
-      std::cout << '\n';
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
+      execPwd(args);
       return;
     }
 
@@ -1167,7 +1127,7 @@ public:
 
       if (contains(command, '|'))
       {
-        executePipeline(command);
+        execPipeline(command);
         continue;
       }
 
