@@ -434,7 +434,8 @@ private:
 
               std::unique_ptr<std::string> content = std::make_unique<std::string>(buffer);
 
-              if (print) this->io.setOutputLine(content->c_str());
+              if (print)
+                this->io.setOutputLine(content->c_str());
 
               free(buffer);
               close(fd);
@@ -473,7 +474,7 @@ private:
         if (str.find(pattern) != std::string::npos)
         {
           ans->push_back(str);
-          std::cout << str << '\n';
+          this->io.setOutputLine(str);
         }
       }
 
@@ -632,6 +633,70 @@ private:
         break;
       }
     }
+
+    io.setOutputStream(STDOUT_STREAM);
+    puts("");
+  }
+
+  void execGrep(std::string &args)
+  {
+    std::vector<std::string> argsList = this->getItemsName(args);
+    std::string outputStream = STDOUT_STREAM;
+
+    if (contains(args, '>'))
+    {
+      std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
+
+      std::smatch match;
+      if (std::regex_search(args, match, pattern))
+      {
+        if (!match[2].str().empty())
+          outputStream = match[2].str();
+        else
+          outputStream = match[3].str();
+
+        args = std::regex_replace(args, pattern, "");
+      }
+      else
+        std::cerr << "Invalid parameter for '>'." << std::endl;
+    }
+
+    if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
+    {
+      std::cerr << "Output file not found.\n\n";
+      return;
+    }
+
+    if (argsList.size() > 1)
+    {
+      int status;
+
+      this->$grep.execute(trim(argsList[0]), trim(argsList[1]), status);
+
+      switch (status)
+      {
+      case SUCCESS:
+        break;
+
+      case OPEN_FILE_FAILURE:
+        std::cout << "Failed to open file.\n";
+        break;
+
+      case READ_FAILURE:
+        std::cout << "Failed to read file.\n";
+        break;
+
+      case MEMORY_ALLOCATION_FAILURE:
+        std::cout << "Memory allocation failure.\n";
+        break;
+
+      default:
+        std::cout << "Failed to execute the command.\n";
+        break;
+      }
+    }
+    else
+      std::cerr << "Not enough parameters!\n";
 
     io.setOutputStream(STDOUT_STREAM);
     puts("");
@@ -1042,49 +1107,9 @@ public:
       return;
     }
 
-    if (std::regex_match(command, std::regex("(\\s*)(grep)(\\s+)(.+)(\\s+)(.+)")))
+    if (command == "grep")
     {
-
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(grep)(\\s+)"), "");
-
-      std::vector<std::string> args = this->getItemsName(commandArgumentsString);
-
-      if (args.size() == 2)
-      {
-        int status;
-
-        this->$grep.execute(trim(args[0]), trim(args[1]), status);
-
-        switch (status)
-        {
-        case SUCCESS:
-          break;
-
-        case OPEN_FILE_FAILURE:
-          std::cout << "Failed to open file.\n";
-          break;
-
-        case READ_FAILURE:
-          std::cout << "Failed to read file.\n";
-          break;
-
-        case MEMORY_ALLOCATION_FAILURE:
-          std::cout << "Memory allocation failure.\n";
-          break;
-
-        default:
-          std::cout << "Failed to execute the command.\n";
-          break;
-        }
-      }
-      else
-        std::cerr << "Invalid arguments!\n";
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
+      execGrep(args);
       return;
     }
 
