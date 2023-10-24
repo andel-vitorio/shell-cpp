@@ -690,17 +690,58 @@ private:
     puts("");
   }
 
-  void hostname(std::string &args) {
+  void hostname(std::string &args)
+  {
     if (contains(args, '>'))
       outputRedirection(args);
     this->io.setOutputLine(this->$hostname.execute());
     puts("");
   }
 
-  void username(std::string &args) {
+  void username(std::string &args)
+  {
     if (contains(args, '>'))
       outputRedirection(args);
     this->io.setOutputLine(this->$username.execute());
+    puts("");
+  }
+
+  void touch(std::string &args)
+  {
+    std::vector<std::string> argsList = this->getItemsName(args);
+    int status;
+
+    if (contains(args, '>'))
+      outputRedirection(args);
+
+    if (argsList.size() > 0)
+      status = this->$touch.execute(trim(argsList[0]));
+    else
+      std::cerr << "Not enough parameters!\n";
+
+    switch (status)
+    {
+    case SUCCESS:
+      break;
+
+    case OPEN_FILE_FAILURE:
+      std::cout << "Failed to open file.\n";
+      break;
+
+    case READ_FAILURE:
+      std::cout << "Failed to read file.\n";
+      break;
+
+    case MEMORY_ALLOCATION_FAILURE:
+      std::cout << "Memory allocation failure.\n";
+      break;
+
+    default:
+      std::cout << "Failed to execute the command.\n";
+      break;
+    }
+
+    io.setOutputStream(STDOUT_STREAM);
     puts("");
   }
 
@@ -800,11 +841,18 @@ public:
     iss >> command;
     std::getline(iss, args);
 
-    if (command == "exit" or command == "quit") isRunning = false;
-    else if (command == "echo") this->echo(args);
-    else if (command == "pwd") this->pwd(args);
-    else if (command == "hostname") this->hostname(args);
-    else if (command == "username") this->username(args);
+    if (command == "exit" or command == "quit")
+      isRunning = false;
+    else if (command == "echo")
+      this->echo(args);
+    else if (command == "pwd")
+      this->pwd(args);
+    else if (command == "hostname")
+      this->hostname(args);
+    else if (command == "username")
+      this->username(args);
+    else if (command == "touch")
+      this->touch(args);
 
     if (std::regex_match(command, std::regex("(\\s*)(touch)(\\s+)(.+)")))
     {
