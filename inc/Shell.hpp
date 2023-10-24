@@ -512,7 +512,16 @@ private:
         .setAction(
             [](const std::string &path) -> int
             {
-              return chdir(path.c_str());
+              std::string $path = path;
+              std::regex pattern("^~");
+
+              if (std::regex_search($path, pattern))
+              {
+                const char *home = std::getenv("HOME");
+                if (home)
+                  $path = std::regex_replace($path, pattern, home);
+              }
+              return chdir($path.c_str());
             });
   }
 
@@ -960,7 +969,41 @@ private:
     puts("");
   }
 
-  void cd(std::string &args) {}
+  void cd(std::string &args)
+  {
+    std::istringstream iss;
+
+    if (contains(args, INPUT_REDIRECTION_SYMBOL))
+      this->inputRedirection(args);
+
+    if (contains(args, OUTPUT_REDIRECTION_SYMBOL))
+      this->outputRedirection(args);
+
+    if (io.isStdinStream())
+    {
+      iss = std::istringstream(args);
+      io.setInputStream(iss);
+    }
+
+    std::string content = this->io.getAllInputLines();
+
+    std::vector<std::string> path = this->getItemsName(content);
+
+    if (path.size() > 0)
+    {
+      switch (this->$cd.execute(trim(path[0])))
+      {
+      case SUCCESS:
+        break;
+
+      default:
+        std::cout << "Failed to execute the command.\n";
+        break;
+      }
+    }
+
+    puts("");
+  }
 
   void execPipeline(const std::string &pipeline)
   {
@@ -1088,36 +1131,6 @@ public:
       grep(args, fromPipeline);
     else
       std::cerr << "Command not found: " << command << "\n\n";
-
-    if (std::regex_match(command, std::regex("(\\s*)(cd)(\\s+)(.+)")))
-    {
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(cd)(\\s+)"), "");
-
-      std::vector<std::string> args = this->getItemsName(commandArgumentsString);
-
-      if (args.size() == 1)
-      {
-        if (isRunningInBackgroung)
-          std::cout << '\n';
-
-        switch (this->$cd.execute(trim(args[0])))
-        {
-        case SUCCESS:
-          break;
-
-        default:
-          std::cout << "Failed to execute the command.\n";
-          break;
-        }
-      }
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
-      return;
-    }
   }
 
   int init()
