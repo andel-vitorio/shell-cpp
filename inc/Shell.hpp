@@ -62,7 +62,7 @@ private:
 
   inline void printPrompt() { std::cout << this->$hostname.execute() << '@' << this->$username.execute() << ":~$ "; }
 
-  std::vector<std::string> getArgumentsListByString(const std::string &text)
+  std::vector<std::string> getItemsName(const std::string &text)
   {
     std::regex argPattern("\"([^\"]+)\"|([^\\s]+)");
     std::vector<std::string> args;
@@ -225,8 +225,8 @@ private:
               DIR *dir = opendir(path.c_str());
               dirent *d;
 
-              bool list = hasCaracter(mode, 'l');
-              bool all = hasCaracter(mode, 'a');
+              bool list = contains(mode, 'l');
+              bool all = contains(mode, 'a');
 
               if (dir == nullptr)
                 return {};
@@ -245,7 +245,7 @@ private:
               std::sort(dirs.begin(), dirs.end(), [](const dirent *a, const dirent *b)
                         { return (std::string)a->d_name < b->d_name; });
 
-              if (!hasCaracter(mode, 'x'))
+              if (!contains(mode, 'x'))
               {
                 for (dirent *dir : dirs)
                 {
@@ -396,7 +396,7 @@ private:
     $cat.setName("cat")
         .setDescription("Displays the contents of a file in the shell.")
         .setAction(
-            [](const std::string &filepath, const bool &print = true, int &status) -> std::unique_ptr<std::string>
+            [this](const std::string &filepath, const bool &print = true, int &status) -> std::unique_ptr<std::string>
             {
               int fd = open(filepath.c_str(), O_RDONLY);
               ssize_t nread, total = 0;
@@ -434,7 +434,7 @@ private:
 
               std::unique_ptr<std::string> content = std::make_unique<std::string>(buffer);
 
-              print &&std::cout << content->c_str() << '\n';
+              if (print) this->io.setOutputLine(content->c_str());
 
               free(buffer);
               close(fd);
@@ -502,7 +502,7 @@ private:
     std::string outputStream = STDOUT_STREAM;
     std::string line, msg = "";
 
-    if (hasCaracter(args, '<'))
+    if (contains(args, '<'))
     {
       std::regex pattern("<\\s*(\"([^\"]*)\"|([^\\s]+))");
 
@@ -519,7 +519,7 @@ private:
         std::cerr << "Invalid parameter for '<'." << std::endl;
     }
 
-    if (hasCaracter(args, '>'))
+    if (contains(args, '>'))
     {
       std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
 
@@ -537,6 +537,8 @@ private:
         std::cerr << "Invalid parameter for '>'." << std::endl;
     }
 
+    std::istringstream iss(args);
+
     if (inputStream != STDIN_STREAM)
     {
       if (io.setInputStream(inputStream) == INPUT_STREAM_FAIL)
@@ -544,22 +546,20 @@ private:
         std::cerr << "Input file not found.\n\n";
         return;
       }
-
-      while (true)
-      {
-        line = io.getInputLine() + '\n';
-        if (io.isEof()) break;
-        msg += line;
-      }
-
-      io.setInputStream("stdin");
     }
     else
+      io.setInputStream(iss);
+
+    while (true)
     {
-      std::istringstream iss(args);
-      while (std::getline(iss, line))
-        msg += line;
+      line = io.getInputLine() + '\n';
+      if (io.isEof())
+        break;
+      msg += line;
     }
+
+    if (inputStream != STDIN_STREAM)
+      io.setInputStream(STDIN_STREAM);
 
     if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
     {
@@ -569,8 +569,137 @@ private:
 
     io.setOutputLine(trim(msg));
     io.setOutputStream(STDOUT_STREAM);
-    
+
     puts("");
+  }
+
+  void execCat(std::string &args)
+  {
+    std::vector<std::string> items = this->getItemsName(args);
+    std::string outputStream = STDOUT_STREAM;
+    std::string line, msg = "";
+
+    if (contains(args, '>'))
+    {
+      std::regex pattern(">\\s*(\"([^\"]*)\"|([^\\s]+))");
+
+      std::smatch match;
+      if (std::regex_search(args, match, pattern))
+      {
+        if (!match[2].str().empty())
+          outputStream = match[2].str();
+        else
+          outputStream = match[3].str();
+
+        args = std::regex_replace(args, pattern, "");
+      }
+      else
+        std::cerr << "Invalid parameter for '>'." << std::endl;
+    }
+
+    if (io.setOutputStream(outputStream) == OUTPUT_STREAM_FAIL)
+    {
+      std::cerr << "Output file not found.\n\n";
+      return;
+    }
+
+    if (items.size() > 0)
+    {
+
+      int status;
+
+      this->$cat.execute(trim(items[0]), true, status);
+
+      switch (status)
+      {
+      case SUCCESS:
+        break;
+
+      case OPEN_FILE_FAILURE:
+        std::cout << "Failed to open file.\n";
+        break;
+
+      case READ_FAILURE:
+        std::cout << "Failed to read file.\n";
+        break;
+
+      case MEMORY_ALLOCATION_FAILURE:
+        std::cout << "Memory allocation failure.\n";
+        break;
+
+      default:
+        std::cout << "Failed to execute the command.\n";
+        break;
+      }
+    }
+
+    io.setOutputStream(STDOUT_STREAM);
+    puts("");
+  }
+
+  void executePipeline(const std::string &pipeline)
+  {
+    std::vector<std::string> commands = split(pipeline, '|');
+    int prev_pipe[2];
+    int current_pipe[2];
+
+    for (size_t i = 0; i < commands.size(); i++)
+    {
+      if (pipe(current_pipe) < 0)
+      {
+        std::cerr << "Erro ao criar pipe." << std::endl;
+        return;
+      }
+
+      pid_t pid = fork();
+
+      if (pid < 0)
+      {
+        std::cerr << "Erro ao criar processo filho." << std::endl;
+        return;
+      }
+
+      if (pid == 0)
+      {
+        if (i > 0)
+        {
+          // Redireciona a entrada do processo atual para a saída do processo anterior.
+          dup2(prev_pipe[0], STDIN_FILENO);
+          close(prev_pipe[0]);
+          close(prev_pipe[1]);
+        }
+
+        if (i < commands.size() - 1)
+        {
+          // Redireciona a saída do processo atual para o próximo processo no pipeline.
+          dup2(current_pipe[1], STDOUT_FILENO);
+          close(current_pipe[0]);
+          close(current_pipe[1]);
+        }
+
+        // Executa o comando atual.
+        this->execute(commands[i], false);
+
+        exit(0);
+      }
+      else
+      {
+        if (i > 0)
+        {
+          close(prev_pipe[0]);
+          close(prev_pipe[1]);
+        }
+
+        prev_pipe[0] = current_pipe[0];
+        prev_pipe[1] = current_pipe[1];
+      }
+    }
+
+    // Espere que todos os processos filhos terminem.
+    for (size_t i = 0; i < commands.size(); i++)
+    {
+      wait(nullptr);
+    }
   }
 
 public:
@@ -604,6 +733,7 @@ public:
     std::string command, args;
 
     iss >> command;
+    std::getline(iss, args);
 
     if (command == "exit" or command == "quit")
     {
@@ -613,7 +743,6 @@ public:
 
     if (command == "echo")
     {
-      std::getline(iss, args);
       execEcho(args);
       return;
     }
@@ -663,7 +792,7 @@ public:
 
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(touch)(\\s+)"), "");
 
-      for (const std::string &filename : this->getArgumentsListByString(commandArgumentsString))
+      for (const std::string &filename : this->getItemsName(commandArgumentsString))
       {
         if (isRunningInBackgroung)
           std::cout << '\n';
@@ -701,7 +830,7 @@ public:
 
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(mkdir)(\\s+)"), "");
 
-      for (const std::string &folderName : this->getArgumentsListByString(commandArgumentsString))
+      for (const std::string &folderName : this->getItemsName(commandArgumentsString))
       {
         if (isRunningInBackgroung)
           std::cout << '\n';
@@ -735,7 +864,7 @@ public:
 
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(rmfile)(\\s+)"), "");
 
-      for (const std::string &filename : this->getArgumentsListByString(commandArgumentsString))
+      for (const std::string &filename : this->getItemsName(commandArgumentsString))
       {
         if (isRunningInBackgroung)
           std::cout << '\n';
@@ -771,7 +900,7 @@ public:
 
       if (commandArgumentsString != "")
       {
-        std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+        std::vector<std::string> args = this->getItemsName(commandArgumentsString);
         if (!args.empty())
         {
 
@@ -805,7 +934,7 @@ public:
 
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(rmdir)(\\s+)"), "");
 
-      for (const std::string &filename : this->getArgumentsListByString(commandArgumentsString))
+      for (const std::string &filename : this->getItemsName(commandArgumentsString))
       {
         if (isRunningInBackgroung)
           std::cout << '\n';
@@ -839,7 +968,7 @@ public:
 
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(mv)(\\s+)"), "");
 
-      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+      std::vector<std::string> args = this->getItemsName(commandArgumentsString);
 
       if (args.size() == 2)
       {
@@ -877,49 +1006,9 @@ public:
       return;
     }
 
-    if (std::regex_match(command, std::regex("(\\s*)(cat)(\\s+)(.+)")))
+    if (command == "cat")
     {
-      std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(cat)(\\s+)"), "");
-
-      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
-
-      if (args.size() == 1)
-      {
-        if (isRunningInBackgroung)
-          std::cout << '\n';
-
-        int status;
-
-        this->$cat.execute(trim(args[0]), true, status);
-
-        switch (status)
-        {
-        case SUCCESS:
-          break;
-
-        case OPEN_FILE_FAILURE:
-          std::cout << "Failed to open file.\n";
-          break;
-
-        case READ_FAILURE:
-          std::cout << "Failed to read file.\n";
-          break;
-
-        case MEMORY_ALLOCATION_FAILURE:
-          std::cout << "Memory allocation failure.\n";
-          break;
-
-        default:
-          std::cout << "Failed to execute the command.\n";
-          break;
-        }
-      }
-
-      puts("");
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
-
+      execCat(args);
       return;
     }
 
@@ -927,7 +1016,7 @@ public:
     {
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(cd)(\\s+)"), "");
 
-      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+      std::vector<std::string> args = this->getItemsName(commandArgumentsString);
 
       if (args.size() == 1)
       {
@@ -958,7 +1047,7 @@ public:
 
       std::string commandArgumentsString = std::regex_replace(command, std::regex("(\\s*)(grep)(\\s+)"), "");
 
-      std::vector<std::string> args = this->getArgumentsListByString(commandArgumentsString);
+      std::vector<std::string> args = this->getItemsName(commandArgumentsString);
 
       if (args.size() == 2)
       {
@@ -1032,6 +1121,12 @@ public:
 
       runInBackground = std::regex_match(textFromPrompt, std::regex(".*\\s+&\\s*$"));
       command = std::regex_replace(textFromPrompt, std::regex("\\s+&\\s*$"), "");
+
+      if (contains(command, '|'))
+      {
+        executePipeline(command);
+        continue;
+      }
 
       pid_t pid;
 

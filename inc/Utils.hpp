@@ -22,7 +22,7 @@ inline std::vector<std::string> split(const std::string& str, const char& charac
   return substrings;
 }
 
-inline bool hasCaracter(std::string str, char character) {
+inline bool contains(std::string str, char character) {
   return str.find(character) != std::string::npos;
 }
 

@@ -63,6 +63,14 @@ public:
     return INPUT_STREAM_SUCCESS;
   }
 
+  int setInputStream(std::istream &source) // Aceita um std::istream como entrada
+  {
+    input = &source;
+    lastSource = ""; // Reseta a última fonte
+    endOfFile = false;
+    return INPUT_STREAM_SUCCESS;
+  }
+
   std::string getInputLine()
   {
     std::string line;
