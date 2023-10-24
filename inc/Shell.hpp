@@ -690,6 +690,13 @@ private:
     puts("");
   }
 
+  void execHostname(std::string &args) {
+    if (contains(args, '>'))
+      outputRedirection(args);
+    this->io.setOutputLine(this->$hostname.execute());
+    puts("");
+  }
+
   void execPipeline(const std::string &pipeline)
   {
     std::vector<std::string> commands = split(pipeline, '|');
@@ -804,16 +811,9 @@ public:
       return;
     }
 
-    if (std::regex_match(command, std::regex("(\\s*)(hostname)(\\s*)")))
+    if (command == "hostname")
     {
-
-      if (isRunningInBackgroung)
-        std::cout << '\n';
-
-      std::cout << this->$hostname.execute() << "\n\n";
-
-      if (isRunningInBackgroung)
-        this->printPrompt();
+      execHostname(args);
       return;
     }
 
