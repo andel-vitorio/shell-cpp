@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-std::vector<std::string> split(const std::string& str, const char& character)
+inline std::vector<std::string> split(const std::string& str, const char& character)
 {
   std::vector<std::string> substrings;
   size_t start = 0;
@@ -22,8 +22,20 @@ std::vector<std::string> split(const std::string& str, const char& character)
   return substrings;
 }
 
-inline bool hasCaracter(std::string str, char character) {
+inline bool contains(std::string str, char character) {
   return str.find(character) != std::string::npos;
+}
+
+inline std::string trim(const std::string & str) {
+    const auto begin = str.find_first_not_of(" \t");
+
+    if ( begin == std::string::npos )
+        return "";
+
+    const auto end = str.find_last_not_of(" \t");
+    const auto len = end - begin + 1;
+    
+    return str.substr(begin, len);
 }
 
 #endif
