@@ -233,15 +233,25 @@ private:
         .setAction(
             [](const std::string &path) -> int
             {
-              std::string p = "./";
+              std::string p;
               int status;
 
-              if (path[0] == '/' or (path[0] == '.' and path[1] == '/'))
-                p = "";
+              if (not(path[0] == '/' or path[0] == '~' or (path[0] == '.' and path[1] == '/')))
+                p = '.';
 
-              for (auto &str : split(path, '/'))
+              std::string $path = path;
+              std::regex pattern("^~");
+
+              if (std::regex_search($path, pattern))
               {
-                p += str + "/";
+                const char *home = std::getenv("HOME");
+                if (home)
+                  $path = std::regex_replace($path, pattern, home);
+              }
+
+              for (auto &str : split($path, '/'))
+              {
+                p += "/" + str;
                 status = mkdir(p.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
               }
 
@@ -260,8 +270,17 @@ private:
             {
               std::string newPath = path;
 
-              if (not(path[0] == '/' or (path[0] == '.' and path[1] == '/')))
+              if (not(path[0] == '/' or path[0] == '~' or (path[0] == '.' and path[1] == '/')))
                 newPath = "./" + path;
+
+              std::regex pattern("^~");
+
+              if (std::regex_search(newPath, pattern))
+              {
+                const char *home = std::getenv("HOME");
+                if (home)
+                  newPath = std::regex_replace(newPath, pattern, home);
+              }
 
               if (!unlink(newPath.c_str()))
                 return SUCCESS;
@@ -277,7 +296,17 @@ private:
         .setAction(
             [this](const std::string &path, const std::string &mode) -> std::vector<dirent *>
             {
-              DIR *dir = opendir(path.c_str());
+              std::string $path = path;
+              std::regex pattern("^~");
+
+              if (std::regex_search($path, pattern))
+              {
+                const char *home = std::getenv("HOME");
+                if (home)
+                  $path = std::regex_replace($path, pattern, home);
+              }
+
+              DIR *dir = opendir($path.c_str());
               dirent *d;
 
               bool list = contains(mode, 'l');
@@ -327,8 +356,17 @@ private:
     {
       std::string path = _path;
 
-      if (not(path[0] == '/' or (path[0] == '.' and path[1] == '/')))
+      if (not(path[0] == '/' or path[0] == '~' or (path[0] == '.' and path[1] == '/')))
         path = "./" + path;
+
+      std::regex pattern("^~");
+
+      if (std::regex_search(path, pattern))
+      {
+        const char *home = std::getenv("HOME");
+        if (home)
+          path = std::regex_replace(path, pattern, home);
+      }
 
       if ($ls.execute(path, "ax").size() > 2)
       {
@@ -405,9 +443,28 @@ private:
     $mv.setName("mv")
         .setDescription("Move or rename a file or directory.")
         .setAction(
-            [](const std::string &source, const std::string &target) -> int
+            [](const std::string &_source, const std::string &_target) -> int
             {
               struct stat source_sb;
+
+              std::string source = _source;
+              std::regex pattern("^~");
+
+              if (std::regex_search(source, pattern))
+              {
+                const char *home = std::getenv("HOME");
+                if (home)
+                  source = std::regex_replace(source, pattern, home);
+              }
+
+              std::string target = _target;
+
+              if (std::regex_search(target, pattern))
+              {
+                const char *home = std::getenv("HOME");
+                if (home)
+                  target = std::regex_replace(target, pattern, home);
+              }
 
               if (stat(source.c_str(), &source_sb) == -1)
                 return FILE_NOT_FOUND;
@@ -455,8 +512,19 @@ private:
     $cat.setName("cat")
         .setDescription("Displays the contents of a file in the shell.")
         .setAction(
-            [this](const std::string &filepath, const bool &print = true, int &status) -> std::unique_ptr<std::string>
+            [this](const std::string &filepath_, const bool &print = true, int &status) -> std::unique_ptr<std::string>
             {
+
+              std::string filepath = filepath_;
+              std::regex pattern("^~");
+
+              if (std::regex_search(filepath, pattern))
+              {
+                const char *home = std::getenv("HOME");
+                if (home)
+                  filepath = std::regex_replace(filepath, pattern, home);
+              }
+
               int fd = open(filepath.c_str(), O_RDONLY);
               ssize_t nread, total = 0;
               char *buffer;
